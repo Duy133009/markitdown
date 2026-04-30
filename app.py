@@ -23,7 +23,7 @@ SUPPORTED_EXTENSIONS = {
 }
 
 HTML_PAGE = r"""<!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,16 +33,16 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
 :root{
-  --bg:#080808;--surface:#111113;--surface2:#1a1a1d;
-  --border:rgba(255,255,255,.07);--border-hover:rgba(255,255,255,.14);
-  --text:#ffffff;--text-2:rgba(255,255,255,.65);--text-3:rgba(255,255,255,.35);
+  --bg:#080808;--surface:#141416;--surface2:#1e1e22;
+  --border:rgba(255,255,255,.12);--border-hover:rgba(255,255,255,.25);
+  --text:#ffffff;--text-2:rgba(255,255,255,.82);--text-3:rgba(255,255,255,.52);
   --btn-bg:#ffffff;--btn-text:#000000;
   --success:#22c55e;--error:#ef4444;--warning:#f59e0b;
 }
 body.light{
-  --bg:#ffffff;--surface:#fafafa;--surface2:#f4f4f5;
-  --border:rgba(0,0,0,.08);--border-hover:rgba(0,0,0,.16);
-  --text:#0a0a0a;--text-2:rgba(0,0,0,.6);--text-3:rgba(0,0,0,.35);
+  --bg:#ffffff;--surface:#f7f7f8;--surface2:#ebebed;
+  --border:rgba(0,0,0,.12);--border-hover:rgba(0,0,0,.25);
+  --text:#0a0a0a;--text-2:rgba(0,0,0,.75);--text-3:rgba(0,0,0,.50);
   --btn-bg:#000000;--btn-text:#ffffff;
   --success:#16a34a;--error:#dc2626;--warning:#d97706;
 }
@@ -171,6 +171,30 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 /* Mobile modal */
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:40;}
 .modal-box{position:fixed;inset:0;z-index:41;display:flex;flex-direction:column;background:var(--surface);}
+
+/* ── AZURE DI SECTION ── */
+.azure-section{border-top:1px solid var(--border);padding:10px 0 0;margin-top:4px;}
+.azure-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.azure-title{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:6px;}
+.azure-dot{width:5px;height:5px;border-radius:50%;background:var(--text-3);}
+.azure-dot.on{background:var(--success);box-shadow:0 0 6px var(--success);}
+.toggle-switch{position:relative;width:32px;height:18px;flex-shrink:0;}
+.toggle-switch input{opacity:0;width:0;height:0;position:absolute;}
+.toggle-slider{position:absolute;inset:0;background:var(--surface2);border-radius:18px;cursor:pointer;border:1px solid var(--border);transition:all .2s;}
+.toggle-slider::before{content:'';position:absolute;width:12px;height:12px;left:2px;top:2px;background:var(--text-3);border-radius:50%;transition:all .2s;}
+.toggle-switch input:checked + .toggle-slider{background:var(--success);border-color:var(--success);}
+.toggle-switch input:checked + .toggle-slider::before{transform:translateX(14px);background:#fff;}
+.azure-fields{display:flex;flex-direction:column;gap:6px;}
+.text-input{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;outline:none;transition:border-color .15s;font-family:inherit;}
+.text-input:focus{border-color:var(--border-hover);}
+.text-input::placeholder{color:var(--text-3);}
+.azure-status{font-size:10px;min-height:14px;transition:all .2s;}
+.azure-status.ok{color:var(--success);}
+.azure-status.err{color:var(--error);}
+.azure-status.checking{color:var(--warning);}
+.engine-badge{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.02em;vertical-align:middle;margin-left:4px;}
+.badge-azure{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
+.badge-local{background:rgba(255,255,255,.08);color:var(--text-3);border:1px solid var(--border);}
 </style>
 </head>
 <body>
@@ -189,8 +213,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
       <div class="dropzone" id="dropzone">
         <input type="file" id="fileInput" multiple accept="*/*">
         <div class="dropzone-icon">&#9729;&#65039;</div>
-        <div class="dropzone-title">Keo tha hoac click de chon</div>
-        <div class="dropzone-sub">Toi da 200MB/file</div>
+        <div class="dropzone-title">Drag & drop or click to select</div>
+        <div class="dropzone-sub">Up to 200MB per file</div>
         <div class="badge-list">
           <span class="badge">PDF</span><span class="badge">DOCX</span><span class="badge">XLSX</span>
           <span class="badge">PPTX</span><span class="badge">HTML</span><span class="badge">CSV</span>
@@ -202,14 +226,44 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
     </div>
     <div class="sidebar-controls">
       <div>
-        <div class="label-sm">Format dau ra</div>
+        <div class="label-sm">Output format</div>
         <select id="outputFormat" class="select-format">
           <option value="md">Markdown (.md)</option>
           <option value="txt">Plain Text (.txt)</option>
         </select>
       </div>
-      <button id="convertBtn" onclick="convertAll()" disabled class="btn-primary">Convert tat ca</button>
-      <button onclick="clearAll()" class="btn-secondary">Xoa tat ca</button>
+
+      <!-- Azure Document Intelligence -->
+      <div class="azure-section">
+        <div class="azure-header">
+          <div class="azure-title">
+            <span class="azure-dot" id="azureDot"></span>
+            Azure Document Intelligence
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="azureToggle" onchange="toggleAzure()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="azure-fields" id="azureFields" style="display:none;">
+          <input type="url" id="azureEndpoint" class="text-input"
+            placeholder="https://....cognitiveservices.azure.com/"
+            oninput="saveAzureConfig()">
+          <input type="password" id="azureKey" class="text-input"
+            placeholder="API Key"
+            oninput="saveAzureConfig()">
+          <div class="azure-status" id="azureStatus"></div>
+          <button onclick="testAzureConnection()"
+            style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:6px;font-size:11px;cursor:pointer;font-family:inherit;transition:all .15s;"
+            onmouseover="this.style.borderColor='var(--border-hover)'"
+            onmouseout="this.style.borderColor='var(--border)'">
+            Test connection
+          </button>
+        </div>
+      </div>
+
+      <button id="convertBtn" onclick="convertAll()" disabled class="btn-primary">Convert all</button>
+      <button onclick="clearAll()" class="btn-secondary">Clear all</button>
     </div>
   </aside>
 
@@ -222,14 +276,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
     <div class="file-list" id="fileQueue"></div>
     <div class="file-empty" id="emptyHint" style="display:flex;">
       <div class="file-empty-icon">&#128196;</div>
-      <div class="file-empty-text">Chua co file nao</div>
+      <div class="file-empty-text">No files yet</div>
     </div>
     <div class="progress-wrap" id="progressWrap" style="display:none;">
       <div class="progress-track"><div class="progress-fill" id="progressBar"></div></div>
     </div>
     <div class="summary-bar" id="summary" style="display:none;">
       <span class="summary-text" id="summaryText"></span>
-      <button class="btn-zip" id="downloadAllBtn" onclick="downloadAll()">&#11015; Tai tat ca .zip</button>
+      <button class="btn-zip" id="downloadAllBtn" onclick="downloadAll()">&#11015; Download all .zip</button>
     </div>
   </div>
 
@@ -237,8 +291,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
   <div class="preview-pane">
     <div class="preview-empty" id="previewEmpty">
       <div class="preview-empty-icon">&#128196;</div>
-      <div class="preview-empty-text">Chon file de xem preview</div>
-      <div class="preview-empty-sub">Convert file truoc, sau do click de xem noi dung</div>
+      <div class="preview-empty-text">Select a file to preview</div>
+      <div class="preview-empty-sub">Convert files first, then click to view content</div>
     </div>
     <div id="previewPanel">
       <div class="preview-header">
@@ -249,7 +303,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
         </div>
         <div class="preview-actions">
           <button class="action-btn" id="copyBtn" onclick="copyContent()">&#128203; Copy</button>
-          <button class="action-btn" id="dlOneBtn">&#11015; Tai xuong</button>
+          <button class="action-btn" id="dlOneBtn">&#11015; Download</button>
           <button class="action-btn close-btn" onclick="closePreview()">&#10005;</button>
         </div>
       </div>
@@ -355,19 +409,23 @@ function render(){
 
     let badge='';
     if(info.status==='waiting')
-      badge=`<span class="file-status status-waiting">Cho...</span>`;
+      badge=`<span class="file-status status-waiting">Pending</span>`;
     else if(info.status==='converting')
-      badge=`<span class="file-status status-converting"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(245,158,11,.3);border-top-color:var(--warning);animation:spin .7s linear infinite;"></span> Xu ly...</span>`;
-    else if(info.status==='done')
-      badge=`<span class="file-status status-done">&#10003; Xong</span>`;
+      badge=`<span class="file-status status-converting"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(245,158,11,.3);border-top-color:var(--warning);animation:spin .7s linear infinite;"></span> Converting...</span>`;
+    else if(info.status==='done'){
+      const eng=info.engine==='azure-di'
+        ?`<span class="engine-badge badge-azure">Azure DI</span>`
+        :`<span class="engine-badge badge-local">local</span>`;
+      badge=`<span class="file-status status-done">&#10003; Done${eng}</span>`;
+    }
     else
-      badge=`<span class="file-status status-error" title="${info.error||''}">&#10006; Loi</span>`;
+      badge=`<span class="file-status status-error" title="${info.error||''}">&#10006; Error</span>`;
 
     let actions='';
     if(done){
       const n=esc(name);
       actions=`<button onclick="previewFile('${n}')" class="icon-btn" title="Preview">&#128065;</button>
-               <button onclick="downloadOne('${n}')" class="icon-btn" title="Tai">&#11015;</button>`;
+               <button onclick="downloadOne('${n}')" class="icon-btn" title="Download">&#11015;</button>`;
     }
     item.innerHTML=`
       <div class="file-icon">${icon(name)}</div>
@@ -378,7 +436,7 @@ function render(){
       </div>
       <div class="file-actions">
         ${actions}
-        <button onclick="removeFile('${esc(name)}')" class="icon-btn danger" title="Xoa">&#10005;</button>
+        <button onclick="removeFile('${esc(name)}')" class="icon-btn danger" title="Remove">&#10005;</button>
       </div>
       ${info.status==='converting'?'<div class="file-progress"></div>':''}
     `;
@@ -390,10 +448,10 @@ function render(){
 async function convertAll(){
   const btn=document.getElementById('convertBtn');
   btn.disabled=true;
-  btn.innerHTML='<span class="spinner"></span> Xu ly...';
+  btn.innerHTML='<span class="spinner"></span> Processing...';
   const fmt=document.getElementById('outputFormat').value;
   const todo=[...fileMap.entries()].filter(([,v])=>v.status==='waiting'||v.status==='error');
-  if(!todo.length){ btn.disabled=false; btn.textContent='Convert tat ca'; return; }
+  if(!todo.length){ btn.disabled=false; btn.textContent='Convert all'; return; }
 
   document.getElementById('progressWrap').style.display='block';
   let done=0;
@@ -401,11 +459,13 @@ async function convertAll(){
     info.status='converting'; render();
     const fd=new FormData();
     fd.append('file',info.file); fd.append('format',fmt); fd.append('session',sessionId);
+    const azCfg=getAzureConfig();
+    if(azCfg){ fd.append('docintel_endpoint',azCfg.endpoint); fd.append('docintel_key',azCfg.key); }
     try{
       const r=await fetch('/convert',{method:'POST',body:fd});
       const d=await r.json();
-      if(d.ok){ info.status='done'; info.resultId=d.result_id; info.outputName=d.output_name; }
-      else    { info.status='error'; info.error=d.error||'That bai'; }
+      if(d.ok){ info.status='done'; info.resultId=d.result_id; info.outputName=d.output_name; info.engine=d.engine||'markitdown'; }
+      else    { info.status='error'; info.error=d.error||'Failed'; }
     }catch{ info.status='error'; info.error='Loi ket noi'; }
     done++;
     document.getElementById('progressBar').style.width=(done/todo.length*100)+'%';
@@ -413,7 +473,7 @@ async function convertAll(){
     if(info.status==='done'&&!curPreview) previewFile(name);
   }
   updateSummary();
-  btn.disabled=false; btn.textContent='Convert tat ca';
+  btn.disabled=false; btn.textContent='Convert all';
 }
 
 // ── Summary ────────────────────────────────────────────────────────────────
@@ -424,8 +484,8 @@ function updateSummary(){
   if(!ok&&!err){ el.style.display='none'; return; }
   el.style.display='flex';
   document.getElementById('summaryText').innerHTML=
-    `<strong>${ok}</strong> file thanh cong`+
-    (err?`, <strong style="color:var(--error)">${err}</strong> loi`:'');
+    `<strong>${ok}</strong> file${ok>1?'s':''} converted`+
+    (err?`, <strong style="color:var(--error)">${err}</strong> failed`:'');
   document.getElementById('downloadAllBtn').style.display=ok>1?'':'none';
 }
 
@@ -472,7 +532,7 @@ async function getContent(id){
     const d=await r.json();
     if(d.ok){ cache[id]=d.content; return d.content; }
   }catch{}
-  return '> Khong the tai noi dung.';
+  return '> Failed to load content.';
 }
 
 function renderContent(txt,mobile){
@@ -540,7 +600,7 @@ async function copyContent(){
   if(!txt) return;
   await navigator.clipboard.writeText(txt);
   const btn=document.getElementById('copyBtn');
-  const old=btn.innerHTML; btn.innerHTML='&#10003; Da copy!';
+  const old=btn.innerHTML; btn.innerHTML='&#10003; Copied!';
   setTimeout(()=>btn.innerHTML=old,1800);
 }
 
@@ -553,6 +613,56 @@ dz.addEventListener('drop', e=>{
 });
 document.getElementById('fileInput').addEventListener('change',e=>{ addFiles(e.target.files); e.target.value=''; });
 marked.setOptions({breaks:true,gfm:true});
+
+// ── Azure Document Intelligence ────────────────────────────────────────────
+function loadAzureConfig(){
+  const cfg=JSON.parse(localStorage.getItem('azureDI')||'{}');
+  if(cfg.endpoint) document.getElementById('azureEndpoint').value=cfg.endpoint;
+  if(cfg.key)      document.getElementById('azureKey').value=cfg.key;
+  if(cfg.enabled){
+    document.getElementById('azureToggle').checked=true;
+    document.getElementById('azureFields').style.display='flex';
+    document.getElementById('azureDot').classList.add('on');
+  }
+}
+function saveAzureConfig(){
+  localStorage.setItem('azureDI', JSON.stringify({
+    enabled:  document.getElementById('azureToggle').checked,
+    endpoint: document.getElementById('azureEndpoint').value.trim(),
+    key:      document.getElementById('azureKey').value.trim(),
+  }));
+}
+function toggleAzure(){
+  const on=document.getElementById('azureToggle').checked;
+  document.getElementById('azureFields').style.display=on?'flex':'none';
+  document.getElementById('azureDot').classList.toggle('on', on);
+  document.getElementById('azureStatus').textContent='';
+  document.getElementById('azureStatus').className='azure-status';
+  saveAzureConfig();
+}
+function getAzureConfig(){
+  const cfg=JSON.parse(localStorage.getItem('azureDI')||'{}');
+  if(!cfg.enabled||!cfg.endpoint||!cfg.key) return null;
+  return cfg;
+}
+async function testAzureConnection(){
+  const cfg=getAzureConfig();
+  const el=document.getElementById('azureStatus');
+  if(!cfg){
+    el.className='azure-status err'; el.textContent='Enable and fill in endpoint + key first.'; return;
+  }
+  el.className='azure-status checking'; el.textContent='Checking...';
+  try{
+    const r=await fetch('/test-azure',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({endpoint:cfg.endpoint, key:cfg.key})
+    });
+    const d=await r.json();
+    if(d.ok){ el.className='azure-status ok'; el.textContent='✓ Connected'; }
+    else     { el.className='azure-status err'; el.textContent='✗ '+d.error; }
+  }catch{ el.className='azure-status err'; el.textContent='✗ Network error'; }
+}
+loadAzureConfig();
 
 // ── Theme toggle ───────────────────────────────────────────────────────────
 const hlTheme=document.getElementById('hl-theme');
@@ -581,35 +691,87 @@ md_converter  = MarkItDown()
 results_store = {}
 
 
+def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
+    """Convert file using Azure Document Intelligence — returns native Markdown."""
+    from azure.ai.documentintelligence import DocumentIntelligenceClient
+    from azure.ai.documentintelligence.models import ContentFormat
+    from azure.core.credentials import AzureKeyCredential
+
+    client = DocumentIntelligenceClient(
+        endpoint=endpoint.rstrip("/"),
+        credential=AzureKeyCredential(api_key),
+    )
+    with open(file_path, "rb") as f:
+        poller = client.begin_analyze_document(
+            "prebuilt-layout",
+            body=f,
+            content_type="application/octet-stream",
+            output_content_format=ContentFormat.MARKDOWN,
+        )
+    result = poller.result()
+    return result.content or ""
+
+
 @app.route("/")
 def index():
     return render_template_string(HTML_PAGE)
 
 
+@app.route("/test-azure", methods=["POST"])
+def test_azure():
+    data     = request.get_json(silent=True) or {}
+    endpoint = data.get("endpoint", "").strip()
+    api_key  = data.get("key", "").strip()
+    if not endpoint or not api_key:
+        return jsonify({"ok": False, "error": "Missing endpoint or API key"})
+    try:
+        from azure.ai.documentintelligence import DocumentIntelligenceClient
+        from azure.core.credentials import AzureKeyCredential
+        # Lightweight call: just list models to verify credentials
+        client = DocumentIntelligenceClient(
+            endpoint=endpoint.rstrip("/"),
+            credential=AzureKeyCredential(api_key),
+        )
+        client.get_resource_info()
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:160]})
+
+
 @app.route("/convert", methods=["POST"])
 def convert():
-    file    = request.files.get("file")
-    fmt     = request.form.get("format", "md")
-    session = request.form.get("session", "default")
+    file              = request.files.get("file")
+    fmt               = request.form.get("format", "md")
+    session           = request.form.get("session", "default")
+    docintel_endpoint = request.form.get("docintel_endpoint", "").strip()
+    docintel_key      = request.form.get("docintel_key", "").strip()
 
     if not file:
         return jsonify({"ok": False, "error": "No file"})
 
     file_ext = Path(file.filename).suffix.lower().lstrip(".")
     if file_ext not in SUPPORTED_EXTENSIONS:
-        return jsonify({"ok": False, "error": f"Dinh dang .{file_ext} chua ho tro"})
+        return jsonify({"ok": False, "error": f"Format .{file_ext} not supported"})
 
     tmp_path = UPLOAD_FOLDER / f"{uuid.uuid4()}{Path(file.filename).suffix}"
     try:
         file.save(str(tmp_path))
-        result        = md_converter.convert(str(tmp_path))
-        content_bytes = result.text_content.encode("utf-8")
+
+        use_azure = bool(docintel_endpoint and docintel_key)
+        if use_azure:
+            content = convert_with_azure_di(str(tmp_path), docintel_endpoint, docintel_key)
+            engine  = "azure-di"
+        else:
+            content = md_converter.convert(str(tmp_path)).text_content
+            engine  = "markitdown"
+
+        content_bytes = content.encode("utf-8")
         output_name   = f"{Path(file.filename).stem}.{fmt}"
         result_id     = str(uuid.uuid4())
         results_store[result_id] = (content_bytes, output_name, session)
-        return jsonify({"ok": True, "result_id": result_id, "output_name": output_name})
+        return jsonify({"ok": True, "result_id": result_id, "output_name": output_name, "engine": engine})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)[:120]})
+        return jsonify({"ok": False, "error": str(e)[:160]})
     finally:
         if tmp_path.exists():
             tmp_path.unlink()
