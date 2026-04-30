@@ -223,6 +223,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .azure-status.checking{color:var(--warning);}
 .engine-badge{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.02em;vertical-align:middle;margin-left:4px;}
 .badge-azure{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
+.badge-pymupdf{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.3);}
+.badge-docling{background:rgba(234,179,8,.15);color:#facc15;border:1px solid rgba(234,179,8,.3);}
 .badge-local{background:rgba(255,255,255,.08);color:var(--text-3);border:1px solid var(--border);}
 </style>
 </head>
@@ -254,6 +256,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
       </div>
     </div>
     <div class="sidebar-controls">
+      <div>
+        <div class="label-sm">Conversion engine</div>
+        <select id="engineSelect" class="select-format" onchange="saveEngineChoice()">
+          <option value="markitdown">MarkItDown (default)</option>
+          <option value="pymupdf">PyMuPDF (fast, local)</option>
+          <option value="docling">Docling — IBM (best quality)</option>
+          <option value="azure-di">Azure Document Intelligence</option>
+        </select>
+      </div>
       <div>
         <div class="label-sm">Output format</div>
         <select id="outputFormat" class="select-format">
@@ -457,9 +468,14 @@ function render(){
     else if(info.status==='converting')
       badge=`<span class="file-status status-converting"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(245,158,11,.3);border-top-color:var(--warning);animation:spin .7s linear infinite;"></span> Converting...</span>`;
     else if(info.status==='done'){
-      let engLabel='local', engClass='badge-local';
-      if(info.engine==='azure-di'){ engLabel='Azure DI'; engClass='badge-azure'; }
-      else if(info.engine==='markitdown-fallback'){ engLabel='fallback'; engClass='badge-local'; }
+      const eMap={
+        'azure-di':      ['Azure DI','badge-azure'],
+        'pymupdf':       ['PyMuPDF','badge-pymupdf'],
+        'docling':       ['Docling','badge-docling'],
+        'markitdown':    ['local','badge-local'],
+        'markitdown-fallback': ['fallback','badge-local'],
+      };
+      const [engLabel,engClass]=eMap[info.engine]||['local','badge-local'];
       badge=`<span class="file-status status-done">&#10003; Done <span class="engine-badge ${engClass}">${engLabel}</span></span>`;
     }
     else
@@ -502,9 +518,13 @@ async function convertAll(){
   for(const [name,info] of todo){
     info.status='converting'; render();
     const fd=new FormData();
+    const engineChoice=document.getElementById('engineSelect').value;
     fd.append('file',info.file); fd.append('format',fmt); fd.append('session',sessionId);
-    const azCfg=getAzureConfig();
-    if(azCfg){ fd.append('docintel_endpoint',azCfg.endpoint); fd.append('docintel_key',azCfg.key); }
+    fd.append('engine', engineChoice);
+    if(engineChoice==='azure-di'){
+      const azCfg=getAzureConfig();
+      if(azCfg){ fd.append('docintel_endpoint',azCfg.endpoint); fd.append('docintel_key',azCfg.key); }
+    }
     try{
       const r=await fetch('/convert',{method:'POST',body:fd});
       const d=await r.json();
@@ -721,6 +741,19 @@ async function loadHistoryItem(id,name){
   }catch{ showSkel(false); }
 }
 
+// ── Engine selection ────────────────────────────────────────────────────────
+function saveEngineChoice(){
+  const v=document.getElementById('engineSelect').value;
+  localStorage.setItem('engineChoice',v);
+  document.getElementById('azureSection').style.display=v==='azure-di'?'block':'none';
+}
+function loadEngineChoice(){
+  const v=localStorage.getItem('engineChoice')||'markitdown';
+  document.getElementById('engineSelect').value=v;
+  document.getElementById('azureSection').style.display=v==='azure-di'?'block':'none';
+}
+loadEngineChoice();
+
 // ── Azure Document Intelligence ────────────────────────────────────────────
 function loadAzureConfig(){
   const cfg=JSON.parse(localStorage.getItem('azureDI')||'{}');
@@ -798,10 +831,23 @@ md_converter  = MarkItDown()
 results_store = {}
 
 
+def convert_with_pymupdf(file_path: str) -> str:
+    """Fast local conversion using pymupdf4llm."""
+    import pymupdf4llm
+    return pymupdf4llm.to_markdown(file_path)
+
+
+def convert_with_docling(file_path: str) -> str:
+    """High-quality local conversion using docling (IBM)."""
+    from docling.document_converter import DocumentConverter
+    converter = DocumentConverter()
+    result = converter.convert(file_path)
+    return result.document.export_to_markdown()
+
+
 def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
     """Convert file using Azure Document Intelligence — returns native Markdown."""
     from azure.ai.documentintelligence import DocumentIntelligenceClient
-    from azure.ai.documentintelligence.models import DocumentContentFormat
     from azure.core.credentials import AzureKeyCredential
 
     client = DocumentIntelligenceClient(
@@ -813,7 +859,7 @@ def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
             "prebuilt-layout",
             body=f,
             content_type="application/octet-stream",
-            output_content_format=DocumentContentFormat.MARKDOWN,
+            output_content_format="markdown",
         )
     result = poller.result()
     return result.content or ""
@@ -856,6 +902,7 @@ def convert():
     file              = request.files.get("file")
     fmt               = request.form.get("format", "md")
     session           = request.form.get("session", "default")
+    engine_choice     = request.form.get("engine", "markitdown")  # markitdown|pymupdf|docling|azure-di
     docintel_endpoint = request.form.get("docintel_endpoint", "").strip()
     docintel_key      = request.form.get("docintel_key", "").strip()
 
@@ -869,20 +916,37 @@ def convert():
     tmp_path = UPLOAD_FOLDER / f"{uuid.uuid4()}{Path(file.filename).suffix}"
     try:
         file.save(str(tmp_path))
+        engine = engine_choice
 
-        use_azure = bool(docintel_endpoint and docintel_key)
-        engine = "markitdown"
-        if use_azure:
+        if engine_choice == "pymupdf":
+            try:
+                content = convert_with_pymupdf(str(tmp_path))
+            except Exception as e:
+                print(f"[pymupdf] failed: {e}, fallback to markitdown")
+                content = md_converter.convert(str(tmp_path)).text_content
+                engine  = "markitdown-fallback"
+
+        elif engine_choice == "docling":
+            try:
+                content = convert_with_docling(str(tmp_path))
+            except Exception as e:
+                print(f"[docling] failed: {e}, fallback to markitdown")
+                content = md_converter.convert(str(tmp_path)).text_content
+                engine  = "markitdown-fallback"
+
+        elif engine_choice == "azure-di" and docintel_endpoint and docintel_key:
             try:
                 content = convert_with_azure_di(str(tmp_path), docintel_endpoint, docintel_key)
                 engine  = "azure-di"
             except Exception as az_err:
-                # Azure failed — fall back to MarkItDown
-                print(f"[Azure DI] failed ({az_err}), falling back to markitdown")
+                import traceback
+                print(f"[Azure DI] FAILED: {type(az_err).__name__}: {az_err}")
+                traceback.print_exc()
                 content = md_converter.convert(str(tmp_path)).text_content
                 engine  = "markitdown-fallback"
         else:
             content = md_converter.convert(str(tmp_path)).text_content
+            engine  = "markitdown"
 
         content_bytes = content.encode("utf-8")
         output_name   = f"{Path(file.filename).stem}.{fmt}"
