@@ -863,8 +863,11 @@ def convert_with_pymupdf(file_path: str) -> str:
 
 
 def convert_with_docling(file_path: str) -> str:
-    """High-quality local conversion using docling (IBM)."""
-    from docling.document_converter import DocumentConverter
+    """High-quality local conversion using docling (IBM). Optional — falls back if not installed."""
+    try:
+        from docling.document_converter import DocumentConverter
+    except ImportError:
+        raise RuntimeError("Docling is not installed. Run: pip install docling")
     converter = DocumentConverter()
     result = converter.convert(file_path)
     return result.document.export_to_markdown()
