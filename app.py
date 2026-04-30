@@ -6,6 +6,32 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_file, render_template_string
 from markitdown import MarkItDown
 
+# Supabase
+SUPABASE_URL = "https://hiojtrjfatfxbffrihnx.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpb2p0cmpmYXRmeGJmZnJpaG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1Njk1NjEsImV4cCI6MjA3ODE0NTU2MX0.HuCpZ2HaNrPXrh6mGR9aH6VGQXEQyDFHzP3_ep9f8Eg"
+
+def get_supabase():
+    try:
+        from supabase import create_client
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception:
+        return None
+
+def save_conversion(file_name, file_size, file_ext, engine, output_name, content):
+    try:
+        sb = get_supabase()
+        if sb:
+            sb.table("conversions").insert({
+                "file_name":   file_name,
+                "file_size":   file_size,
+                "file_ext":    file_ext,
+                "engine":      engine,
+                "output_name": output_name,
+                "content":     content[:500000],  # cap 500k chars
+            }).execute()
+    except Exception as e:
+        print(f"[Supabase] save failed: {e}")
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
@@ -29,8 +55,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MarkItDown Converter</title>
 <link id="hl-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <style>
 :root{
   --bg:#080808;--surface:#141416;--surface2:#1e1e22;
@@ -272,6 +301,21 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
     <div class="file-pane-header">
       <span class="file-pane-title">Files</span>
       <span class="count-badge" id="countBadge">0</span>
+      <div style="flex:1;"></div>
+      <button onclick="toggleHistory()" id="historyBtn"
+        style="font-size:10px;padding:2px 8px;border-radius:4px;background:transparent;border:1px solid var(--border);color:var(--text-3);cursor:pointer;transition:all .15s;font-family:inherit;"
+        onmouseover="this.style.borderColor='var(--border-hover)';this.style.color='var(--text-2)'"
+        onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-3)'">
+        &#128336; History
+      </button>
+    </div>
+    <!-- History panel -->
+    <div id="historyPanel" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div style="padding:8px 16px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:8px;flex-shrink:0;">
+        Recent conversions
+        <button onclick="loadHistory()" style="margin-left:auto;background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:11px;">&#8635; Refresh</button>
+      </div>
+      <div id="historyList" style="overflow-y:auto;flex:1;"></div>
     </div>
     <div class="file-list" id="fileQueue"></div>
     <div class="file-empty" id="emptyHint" style="display:flex;">
@@ -413,10 +457,10 @@ function render(){
     else if(info.status==='converting')
       badge=`<span class="file-status status-converting"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(245,158,11,.3);border-top-color:var(--warning);animation:spin .7s linear infinite;"></span> Converting...</span>`;
     else if(info.status==='done'){
-      const eng=info.engine==='azure-di'
-        ?`<span class="engine-badge badge-azure">Azure DI</span>`
-        :`<span class="engine-badge badge-local">local</span>`;
-      badge=`<span class="file-status status-done">&#10003; Done${eng}</span>`;
+      let engLabel='local', engClass='badge-local';
+      if(info.engine==='azure-di'){ engLabel='Azure DI'; engClass='badge-azure'; }
+      else if(info.engine==='markitdown-fallback'){ engLabel='fallback'; engClass='badge-local'; }
+      badge=`<span class="file-status status-done">&#10003; Done <span class="engine-badge ${engClass}">${engLabel}</span></span>`;
     }
     else
       badge=`<span class="file-status status-error" title="${info.error||''}">&#10006; Error</span>`;
@@ -535,6 +579,20 @@ async function getContent(id){
   return '> Failed to load content.';
 }
 
+function renderMath(el){
+  if(typeof renderMathInElement !== 'undefined'){
+    renderMathInElement(el,{
+      delimiters:[
+        {left:'$$',right:'$$',display:true},
+        {left:'$',right:'$',display:false},
+        {left:'\\(',right:'\\)',display:false},
+        {left:'\\[',right:'\\]',display:true},
+      ],
+      throwOnError:false,
+    });
+  }
+}
+
 function renderContent(txt,mobile){
   const html=marked.parse(txt||'');
   if(mobile){
@@ -542,10 +600,12 @@ function renderContent(txt,mobile){
     mR.innerHTML='<div class="prose">'+html+'</div>';
     document.getElementById('mRaw').value=txt||'';
     mR.querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
+    renderMath(mR);
   } else {
     document.getElementById('proseContent').innerHTML=html;
     document.getElementById('pRaw').value=txt||'';
     document.getElementById('proseContent').querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
+    renderMath(document.getElementById('proseContent'));
   }
   applyTab();
 }
@@ -613,6 +673,53 @@ dz.addEventListener('drop', e=>{
 });
 document.getElementById('fileInput').addEventListener('change',e=>{ addFiles(e.target.files); e.target.value=''; });
 marked.setOptions({breaks:true,gfm:true});
+
+// ── History ────────────────────────────────────────────────────────────────
+let historyOpen=false;
+function toggleHistory(){
+  historyOpen=!historyOpen;
+  document.getElementById('historyPanel').style.display=historyOpen?'flex':'none';
+  document.getElementById('fileQueue').style.display=historyOpen?'none':'block';
+  document.getElementById('emptyHint').style.display=historyOpen?'none':(fileMap.size===0?'flex':'none');
+  document.getElementById('historyBtn').style.color=historyOpen?'var(--text)':'var(--text-3)';
+  if(historyOpen) loadHistory();
+}
+async function loadHistory(){
+  const list=document.getElementById('historyList');
+  list.innerHTML='<div style="padding:16px;font-size:11px;color:var(--text-3);">Loading...</div>';
+  try{
+    const r=await fetch('/history');
+    const d=await r.json();
+    if(!d.ok||!d.rows.length){ list.innerHTML='<div style="padding:16px;font-size:11px;color:var(--text-3);">No history yet.</div>'; return; }
+    list.innerHTML=d.rows.map(row=>{
+      const date=new Date(row.created_at).toLocaleDateString('en',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const eng=row.engine==='azure-di'?'<span class="engine-badge badge-azure">Azure DI</span>':'<span class="engine-badge badge-local">local</span>';
+      const chars=row.char_count?`${(row.char_count/1000).toFixed(1)}k chars`:'';
+      return `<div onclick="loadHistoryItem('${row.id}','${row.output_name||row.file_name}')"
+        style="padding:10px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s;"
+        onmouseover="this.style.background='rgba(128,128,128,.05)'" onmouseout="this.style.background='transparent'">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${row.file_name}</div>
+        <div style="font-size:10px;color:var(--text-3);margin-top:3px;display:flex;gap:6px;align-items:center;">
+          <span>${date}</span>${eng}<span>${chars}</span>
+        </div>
+      </div>`;
+    }).join('');
+  }catch{ list.innerHTML='<div style="padding:16px;font-size:11px;color:var(--error);">Failed to load.</div>'; }
+}
+async function loadHistoryItem(id,name){
+  document.getElementById('previewEmpty').style.display='none';
+  document.getElementById('previewPanel').classList.add('visible');
+  document.getElementById('previewFileName').textContent=name;
+  document.getElementById('dlOneBtn').onclick=()=>{};
+  showSkel(true);
+  try{
+    const r=await fetch('/history/'+id+'/content');
+    const d=await r.json();
+    showSkel(false);
+    if(d.ok){ renderContent(d.content,false); }
+    else { document.getElementById('proseContent').innerHTML='<p style="color:var(--error)">Failed to load.</p>'; }
+  }catch{ showSkel(false); }
+}
 
 // ── Azure Document Intelligence ────────────────────────────────────────────
 function loadAzureConfig(){
@@ -758,23 +865,59 @@ def convert():
         file.save(str(tmp_path))
 
         use_azure = bool(docintel_endpoint and docintel_key)
+        engine = "markitdown"
         if use_azure:
-            content = convert_with_azure_di(str(tmp_path), docintel_endpoint, docintel_key)
-            engine  = "azure-di"
+            try:
+                content = convert_with_azure_di(str(tmp_path), docintel_endpoint, docintel_key)
+                engine  = "azure-di"
+            except Exception as az_err:
+                # Azure failed — fall back to MarkItDown
+                print(f"[Azure DI] failed ({az_err}), falling back to markitdown")
+                content = md_converter.convert(str(tmp_path)).text_content
+                engine  = "markitdown-fallback"
         else:
             content = md_converter.convert(str(tmp_path)).text_content
-            engine  = "markitdown"
 
         content_bytes = content.encode("utf-8")
         output_name   = f"{Path(file.filename).stem}.{fmt}"
         result_id     = str(uuid.uuid4())
         results_store[result_id] = (content_bytes, output_name, session)
+
+        # Persist to Supabase (non-blocking best-effort)
+        save_conversion(
+            file_name=file.filename, file_size=file.content_length or len(content_bytes),
+            file_ext=file_ext, engine=engine, output_name=output_name, content=content,
+        )
         return jsonify({"ok": True, "result_id": result_id, "output_name": output_name, "engine": engine})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)[:160]})
     finally:
         if tmp_path.exists():
             tmp_path.unlink()
+
+
+@app.route("/history")
+def history():
+    try:
+        sb = get_supabase()
+        if not sb:
+            return jsonify({"ok": False, "error": "Supabase not available"})
+        rows = sb.table("conversions").select(
+            "id,created_at,file_name,file_size,file_ext,engine,output_name,char_count"
+        ).order("created_at", desc=True).limit(50).execute()
+        return jsonify({"ok": True, "rows": rows.data})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:160]})
+
+
+@app.route("/history/<record_id>/content")
+def history_content(record_id):
+    try:
+        sb = get_supabase()
+        row = sb.table("conversions").select("content,output_name").eq("id", record_id).single().execute()
+        return jsonify({"ok": True, "content": row.data["content"], "output_name": row.data["output_name"]})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:160]})
 
 
 @app.route("/preview/<result_id>")
