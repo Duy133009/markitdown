@@ -801,7 +801,7 @@ results_store = {}
 def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
     """Convert file using Azure Document Intelligence — returns native Markdown."""
     from azure.ai.documentintelligence import DocumentIntelligenceClient
-    from azure.ai.documentintelligence.models import ContentFormat
+    from azure.ai.documentintelligence.models import DocumentContentFormat
     from azure.core.credentials import AzureKeyCredential
 
     client = DocumentIntelligenceClient(
@@ -813,7 +813,7 @@ def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
             "prebuilt-layout",
             body=f,
             content_type="application/octet-stream",
-            output_content_format=ContentFormat.MARKDOWN,
+            output_content_format=DocumentContentFormat.MARKDOWN,
         )
     result = poller.result()
     return result.content or ""
@@ -834,13 +834,19 @@ def test_azure():
     try:
         from azure.ai.documentintelligence import DocumentIntelligenceClient
         from azure.core.credentials import AzureKeyCredential
-        # Lightweight call: just list models to verify credentials
+        from azure.core.rest import HttpRequest
         client = DocumentIntelligenceClient(
             endpoint=endpoint.rstrip("/"),
             credential=AzureKeyCredential(api_key),
         )
-        client.get_resource_info()
-        return jsonify({"ok": True})
+        req = HttpRequest(
+            "GET",
+            f"{endpoint.rstrip('/')}/documentintelligence/documentModels?api-version=2024-11-30"
+        )
+        resp = client.send_request(req)
+        if resp.status_code == 200:
+            return jsonify({"ok": True})
+        return jsonify({"ok": False, "error": f"HTTP {resp.status_code}"})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)[:160]})
 
