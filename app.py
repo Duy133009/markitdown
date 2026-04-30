@@ -14,6 +14,35 @@ from markitdown import MarkItDown
 APP_PASSWORD  = os.environ.get("APP_PASSWORD", "markitdown2026")
 SECRET_KEY    = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
+def hash_password(pw: str) -> str:
+    salt = b"markitdown_salt_v1"
+    return hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, 260000).hex()
+
+def get_current_password_hash() -> str:
+    """Read password hash from Supabase kv_store. Falls back to env var."""
+    try:
+        sb = get_supabase()
+        if sb:
+            row = sb.table("kv_store_2281cd7c").select("value").eq("key", "app_password_hash").execute()
+            if row.data:
+                return row.data[0]["value"]["hash"]
+    except Exception:
+        pass
+    return hash_password(APP_PASSWORD)
+
+def set_password(new_pw: str):
+    """Persist new password hash to Supabase."""
+    sb = get_supabase()
+    if not sb:
+        return False
+    h = hash_password(new_pw)
+    existing = sb.table("kv_store_2281cd7c").select("key").eq("key", "app_password_hash").execute()
+    if existing.data:
+        sb.table("kv_store_2281cd7c").update({"value": {"hash": h}}).eq("key", "app_password_hash").execute()
+    else:
+        sb.table("kv_store_2281cd7c").insert({"key": "app_password_hash", "value": {"hash": h}}).execute()
+    return True
+
 # Supabase
 SUPABASE_URL = "https://hiojtrjfatfxbffrihnx.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpb2p0cmpmYXRmeGJmZnJpaG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1Njk1NjEsImV4cCI6MjA3ODE0NTU2MX0.HuCpZ2HaNrPXrh6mGR9aH6VGQXEQyDFHzP3_ep9f8Eg"
@@ -218,6 +247,24 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:40;}
 .modal-box{position:fixed;inset:0;z-index:41;display:flex;flex-direction:column;background:var(--surface);}
 
+/* Settings modal */
+.settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(3px);z-index:50;display:none;align-items:center;justify-content:center;}
+.settings-overlay.open{display:flex;}
+.settings-modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:360px;overflow:hidden;}
+.settings-header{padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.settings-title{font-size:13px;font-weight:600;letter-spacing:-.01em;}
+.settings-body{padding:20px;}
+.settings-section-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);margin-bottom:12px;}
+.settings-field{margin-bottom:12px;}
+.settings-field label{font-size:11px;color:var(--text-3);display:block;margin-bottom:5px;}
+.settings-input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:9px 12px;font-size:12px;outline:none;transition:border-color .15s;font-family:inherit;}
+.settings-input:focus{border-color:var(--border-hover);}
+.settings-save{width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:7px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;margin-top:4px;transition:opacity .15s;font-family:inherit;}
+.settings-save:hover{opacity:.82;}
+.settings-msg{font-size:11px;margin-top:8px;min-height:16px;}
+.settings-msg.ok{color:var(--success);}
+.settings-msg.err{color:var(--error);}
+
 .engine-badge{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.02em;vertical-align:middle;margin-left:4px;}
 .badge-pymupdf{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.3);}
 .badge-docling{background:rgba(234,179,8,.15);color:#facc15;border:1px solid rgba(234,179,8,.3);}
@@ -236,7 +283,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
       </div>
       <div style="display:flex;gap:6px;">
         <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">&#9728;</button>
-        <a href="/logout" class="theme-btn" title="Sign out" style="text-decoration:none;font-size:12px;">&#10562;</a>
+        <button class="theme-btn" onclick="openSettings()" title="Settings">&#9881;</button>
+        <a href="/logout" class="theme-btn" title="Sign out" style="text-decoration:none;font-size:12px;display:flex;align-items:center;justify-content:center;">&#10562;</a>
       </div>
     </div>
     <div class="sidebar-body">
@@ -350,6 +398,33 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 
 <!-- hidden: JS toggles mainLayout class (no visual effect in 3-pane) -->
 <div id="mainLayout" style="display:none;"></div>
+
+<!-- Settings modal -->
+<div class="settings-overlay" id="settingsOverlay" onclick="closeSettingsOutside(event)">
+  <div class="settings-modal">
+    <div class="settings-header">
+      <span class="settings-title">&#9881; Settings</span>
+      <button onclick="closeSettings()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:2px 6px;">&#10005;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section-label">Change Password</div>
+      <div class="settings-field">
+        <label>Current password</label>
+        <input type="password" id="setCurrent" class="settings-input" placeholder="••••••••">
+      </div>
+      <div class="settings-field">
+        <label>New password</label>
+        <input type="password" id="setNew" class="settings-input" placeholder="Min. 6 characters">
+      </div>
+      <div class="settings-field">
+        <label>Confirm new password</label>
+        <input type="password" id="setConfirm" class="settings-input" placeholder="Re-enter new password">
+      </div>
+      <button class="settings-save" onclick="savePassword()">Save password</button>
+      <div class="settings-msg" id="setMsg"></div>
+    </div>
+  </div>
+</div>
 
 <!-- MOBILE MODAL -->
 <div id="mobileModal" style="display:none;">
@@ -720,6 +795,40 @@ function loadEngineChoice(){
 loadEngineChoice();
 
 
+// ── Settings ───────────────────────────────────────────────────────────────
+function openSettings(){
+  document.getElementById('settingsOverlay').classList.add('open');
+  document.getElementById('setCurrent').focus();
+  document.getElementById('setMsg').textContent='';
+  document.getElementById('setCurrent').value='';
+  document.getElementById('setNew').value='';
+  document.getElementById('setConfirm').value='';
+}
+function closeSettings(){ document.getElementById('settingsOverlay').classList.remove('open'); }
+function closeSettingsOutside(e){ if(e.target===document.getElementById('settingsOverlay')) closeSettings(); }
+async function savePassword(){
+  const cur=document.getElementById('setCurrent').value;
+  const nw=document.getElementById('setNew').value;
+  const cf=document.getElementById('setConfirm').value;
+  const msg=document.getElementById('setMsg');
+  if(!cur||!nw||!cf){ msg.className='settings-msg err'; msg.textContent='All fields are required.'; return; }
+  if(nw!==cf){ msg.className='settings-msg err'; msg.textContent='New passwords do not match.'; return; }
+  msg.className='settings-msg'; msg.textContent='Saving...';
+  try{
+    const r=await fetch('/settings/password',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({current:cur,new_pw:nw})
+    });
+    const d=await r.json();
+    if(d.ok){
+      msg.className='settings-msg ok'; msg.textContent='Password updated! Redirecting to login...';
+      setTimeout(()=>window.location.href='/logout',1500);
+    } else {
+      msg.className='settings-msg err'; msg.textContent=d.error;
+    }
+  }catch{ msg.className='settings-msg err'; msg.textContent='Network error.'; }
+}
+
 // ── Theme toggle ───────────────────────────────────────────────────────────
 const hlTheme=document.getElementById('hl-theme');
 function applyTheme(isLight){
@@ -826,7 +935,7 @@ def login():
     error = None
     if request.method == "POST":
         pw = request.form.get("password", "")
-        if pw == APP_PASSWORD:
+        if hash_password(pw) == get_current_password_hash():
             session["authenticated"] = True
             session.permanent = True
             return redirect(url_for("index"))
@@ -838,6 +947,23 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/settings/password", methods=["POST"])
+@login_required
+def change_password():
+    data        = request.get_json(silent=True) or {}
+    current     = data.get("current", "")
+    new_pw      = data.get("new_pw", "")
+    if hash_password(current) != get_current_password_hash():
+        return jsonify({"ok": False, "error": "Current password is incorrect."})
+    if len(new_pw) < 6:
+        return jsonify({"ok": False, "error": "Password must be at least 6 characters."})
+    ok = set_password(new_pw)
+    if ok:
+        session.clear()  # force re-login with new password
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Failed to save. Check Supabase connection."})
 
 
 @app.route("/")
