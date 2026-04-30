@@ -1,3 +1,12 @@
+---
+title: MarkItDown Converter
+emoji: 📄
+colorFrom: indigo
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # MarkItDown Web UI
 
 Web app chuyển đổi PDF, Word, Excel, PowerPoint, ảnh... sang Markdown, dùng với AI/LLM.
