@@ -75,6 +75,8 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200MB
 app.secret_key = SECRET_KEY
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = True
 
 def login_required(f):
     @wraps(f)
