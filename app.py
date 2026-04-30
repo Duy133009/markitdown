@@ -1,10 +1,18 @@
 import io
+import os
 import sys
 import uuid
 import zipfile
+import hashlib
+import secrets
 from pathlib import Path
-from flask import Flask, request, jsonify, send_file, render_template_string
+from functools import wraps
+from flask import Flask, request, jsonify, send_file, render_template_string, session, redirect, url_for
 from markitdown import MarkItDown
+
+# ── Auth config ────────────────────────────────────────────────────────────
+APP_PASSWORD  = os.environ.get("APP_PASSWORD", "markitdown2026")
+SECRET_KEY    = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 # Supabase
 SUPABASE_URL = "https://hiojtrjfatfxbffrihnx.supabase.co"
@@ -37,6 +45,15 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 200 * 1024 * 1024  # 200MB
+app.secret_key = SECRET_KEY
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("authenticated"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
 
 UPLOAD_FOLDER = Path("uploads_temp")
 UPLOAD_FOLDER.mkdir(exist_ok=True)
@@ -201,28 +218,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:40;}
 .modal-box{position:fixed;inset:0;z-index:41;display:flex;flex-direction:column;background:var(--surface);}
 
-/* ── AZURE DI SECTION ── */
-.azure-section{border-top:1px solid var(--border);padding:10px 0 0;margin-top:4px;}
-.azure-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.azure-title{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:6px;}
-.azure-dot{width:5px;height:5px;border-radius:50%;background:var(--text-3);}
-.azure-dot.on{background:var(--success);box-shadow:0 0 6px var(--success);}
-.toggle-switch{position:relative;width:32px;height:18px;flex-shrink:0;}
-.toggle-switch input{opacity:0;width:0;height:0;position:absolute;}
-.toggle-slider{position:absolute;inset:0;background:var(--surface2);border-radius:18px;cursor:pointer;border:1px solid var(--border);transition:all .2s;}
-.toggle-slider::before{content:'';position:absolute;width:12px;height:12px;left:2px;top:2px;background:var(--text-3);border-radius:50%;transition:all .2s;}
-.toggle-switch input:checked + .toggle-slider{background:var(--success);border-color:var(--success);}
-.toggle-switch input:checked + .toggle-slider::before{transform:translateX(14px);background:#fff;}
-.azure-fields{display:flex;flex-direction:column;gap:6px;}
-.text-input{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:11px;outline:none;transition:border-color .15s;font-family:inherit;}
-.text-input:focus{border-color:var(--border-hover);}
-.text-input::placeholder{color:var(--text-3);}
-.azure-status{font-size:10px;min-height:14px;transition:all .2s;}
-.azure-status.ok{color:var(--success);}
-.azure-status.err{color:var(--error);}
-.azure-status.checking{color:var(--warning);}
 .engine-badge{display:inline-block;font-size:9px;padding:1px 5px;border-radius:3px;font-weight:700;letter-spacing:.02em;vertical-align:middle;margin-left:4px;}
-.badge-azure{background:rgba(59,130,246,.15);color:#60a5fa;border:1px solid rgba(59,130,246,.3);}
 .badge-pymupdf{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.3);}
 .badge-docling{background:rgba(234,179,8,.15);color:#facc15;border:1px solid rgba(234,179,8,.3);}
 .badge-local{background:rgba(255,255,255,.08);color:var(--text-3);border:1px solid var(--border);}
@@ -238,7 +234,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
         <div class="logo-name"><span class="logo-dot"></span>MarkItDown</div>
         <div class="logo-sub">File to Markdown converter</div>
       </div>
-      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">&#9728;</button>
+      <div style="display:flex;gap:6px;">
+        <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">&#9728;</button>
+        <a href="/logout" class="theme-btn" title="Sign out" style="text-decoration:none;font-size:12px;">&#10562;</a>
+      </div>
     </div>
     <div class="sidebar-body">
       <div class="dropzone" id="dropzone">
@@ -260,9 +259,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
         <div class="label-sm">Conversion engine</div>
         <select id="engineSelect" class="select-format" onchange="saveEngineChoice()">
           <option value="markitdown">MarkItDown (default)</option>
-          <option value="pymupdf">PyMuPDF (fast, local)</option>
+          <option value="pymupdf">PyMuPDF (fast)</option>
           <option value="docling">Docling — IBM (best quality)</option>
-          <option value="azure-di">Azure Document Intelligence</option>
         </select>
       </div>
       <div>
@@ -271,35 +269,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
           <option value="md">Markdown (.md)</option>
           <option value="txt">Plain Text (.txt)</option>
         </select>
-      </div>
-
-      <!-- Azure Document Intelligence -->
-      <div class="azure-section">
-        <div class="azure-header">
-          <div class="azure-title">
-            <span class="azure-dot" id="azureDot"></span>
-            Azure Document Intelligence
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="azureToggle" onchange="toggleAzure()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="azure-fields" id="azureFields" style="display:none;">
-          <input type="url" id="azureEndpoint" class="text-input"
-            placeholder="https://....cognitiveservices.azure.com/"
-            oninput="saveAzureConfig()">
-          <input type="password" id="azureKey" class="text-input"
-            placeholder="API Key"
-            oninput="saveAzureConfig()">
-          <div class="azure-status" id="azureStatus"></div>
-          <button onclick="testAzureConnection()"
-            style="width:100%;background:transparent;border:1px solid var(--border);color:var(--text-2);border-radius:6px;padding:6px;font-size:11px;cursor:pointer;font-family:inherit;transition:all .15s;"
-            onmouseover="this.style.borderColor='var(--border-hover)'"
-            onmouseout="this.style.borderColor='var(--border)'">
-            Test connection
-          </button>
-        </div>
       </div>
 
       <button id="convertBtn" onclick="convertAll()" disabled class="btn-primary">Convert all</button>
@@ -521,10 +490,6 @@ async function convertAll(){
     const engineChoice=document.getElementById('engineSelect').value;
     fd.append('file',info.file); fd.append('format',fmt); fd.append('session',sessionId);
     fd.append('engine', engineChoice);
-    if(engineChoice==='azure-di'){
-      const azCfg=getAzureConfig();
-      if(azCfg){ fd.append('docintel_endpoint',azCfg.endpoint); fd.append('docintel_key',azCfg.key); }
-    }
     try{
       const r=await fetch('/convert',{method:'POST',body:fd});
       const d=await r.json();
@@ -754,55 +719,6 @@ function loadEngineChoice(){
 }
 loadEngineChoice();
 
-// ── Azure Document Intelligence ────────────────────────────────────────────
-function loadAzureConfig(){
-  const cfg=JSON.parse(localStorage.getItem('azureDI')||'{}');
-  if(cfg.endpoint) document.getElementById('azureEndpoint').value=cfg.endpoint;
-  if(cfg.key)      document.getElementById('azureKey').value=cfg.key;
-  if(cfg.enabled){
-    document.getElementById('azureToggle').checked=true;
-    document.getElementById('azureFields').style.display='flex';
-    document.getElementById('azureDot').classList.add('on');
-  }
-}
-function saveAzureConfig(){
-  localStorage.setItem('azureDI', JSON.stringify({
-    enabled:  document.getElementById('azureToggle').checked,
-    endpoint: document.getElementById('azureEndpoint').value.trim(),
-    key:      document.getElementById('azureKey').value.trim(),
-  }));
-}
-function toggleAzure(){
-  const on=document.getElementById('azureToggle').checked;
-  document.getElementById('azureFields').style.display=on?'flex':'none';
-  document.getElementById('azureDot').classList.toggle('on', on);
-  document.getElementById('azureStatus').textContent='';
-  document.getElementById('azureStatus').className='azure-status';
-  saveAzureConfig();
-}
-function getAzureConfig(){
-  const cfg=JSON.parse(localStorage.getItem('azureDI')||'{}');
-  if(!cfg.enabled||!cfg.endpoint||!cfg.key) return null;
-  return cfg;
-}
-async function testAzureConnection(){
-  const cfg=getAzureConfig();
-  const el=document.getElementById('azureStatus');
-  if(!cfg){
-    el.className='azure-status err'; el.textContent='Enable and fill in endpoint + key first.'; return;
-  }
-  el.className='azure-status checking'; el.textContent='Checking...';
-  try{
-    const r=await fetch('/test-azure',{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({endpoint:cfg.endpoint, key:cfg.key})
-    });
-    const d=await r.json();
-    if(d.ok){ el.className='azure-status ok'; el.textContent='✓ Connected'; }
-    else     { el.className='azure-status err'; el.textContent='✗ '+d.error; }
-  }catch{ el.className='azure-status err'; el.textContent='✗ Network error'; }
-}
-loadAzureConfig();
 
 // ── Theme toggle ───────────────────────────────────────────────────────────
 const hlTheme=document.getElementById('hl-theme');
@@ -865,12 +781,73 @@ def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
     return result.content or ""
 
 
+LOGIN_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MarkItDown — Login</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#080808;color:#fff;font-family:-apple-system,'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;}
+.card{background:#111113;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:40px 36px;width:100%;max-width:360px;}
+.logo{font-size:15px;font-weight:700;letter-spacing:-.02em;margin-bottom:28px;display:flex;align-items:center;gap:8px;color:#fff;}
+.dot{width:7px;height:7px;background:#fff;border-radius:50%;}
+h2{font-size:1.2rem;font-weight:600;margin-bottom:6px;letter-spacing:-.02em;}
+p{font-size:13px;color:rgba(255,255,255,.45);margin-bottom:24px;}
+label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.4);display:block;margin-bottom:6px;}
+input[type=password]{width:100%;background:#1a1a1d;color:#fff;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:11px 14px;font-size:14px;outline:none;transition:border-color .15s;font-family:inherit;}
+input[type=password]:focus{border-color:rgba(255,255,255,.3);}
+button{width:100%;background:#fff;color:#000;border:none;border-radius:8px;padding:12px;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;transition:opacity .15s;font-family:inherit;}
+button:hover{opacity:.85;}
+.err{color:#ef4444;font-size:12px;margin-top:10px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo"><span class="dot"></span>MarkItDown</div>
+  <h2>Welcome back</h2>
+  <p>Enter your password to continue</p>
+  <form method="POST" action="/login">
+    <label>Password</label>
+    <input type="password" name="password" autofocus placeholder="••••••••••">
+    <button type="submit">Sign in</button>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  </form>
+</div>
+</body>
+</html>"""
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if session.get("authenticated"):
+        return redirect(url_for("index"))
+    error = None
+    if request.method == "POST":
+        pw = request.form.get("password", "")
+        if pw == APP_PASSWORD:
+            session["authenticated"] = True
+            session.permanent = True
+            return redirect(url_for("index"))
+        error = "Incorrect password."
+    return render_template_string(LOGIN_PAGE, error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/")
+@login_required
 def index():
     return render_template_string(HTML_PAGE)
 
 
 @app.route("/test-azure", methods=["POST"])
+@login_required
 def test_azure():
     data     = request.get_json(silent=True) or {}
     endpoint = data.get("endpoint", "").strip()
@@ -898,6 +875,7 @@ def test_azure():
 
 
 @app.route("/convert", methods=["POST"])
+@login_required
 def convert():
     file              = request.files.get("file")
     fmt               = request.form.get("format", "md")
@@ -967,6 +945,7 @@ def convert():
 
 
 @app.route("/history")
+@login_required
 def history():
     try:
         sb = get_supabase()
@@ -981,6 +960,7 @@ def history():
 
 
 @app.route("/history/<record_id>/content")
+@login_required
 def history_content(record_id):
     try:
         sb = get_supabase()
@@ -991,6 +971,7 @@ def history_content(record_id):
 
 
 @app.route("/preview/<result_id>")
+@login_required
 def preview(result_id):
     if result_id not in results_store:
         return jsonify({"ok": False, "error": "Not found"}), 404
@@ -999,6 +980,7 @@ def preview(result_id):
 
 
 @app.route("/download/<result_id>/<filename>")
+@login_required
 def download_one(result_id, filename):
     if result_id not in results_store:
         return "Not found", 404
@@ -1012,6 +994,7 @@ def download_one(result_id, filename):
 
 
 @app.route("/download-zip")
+@login_required
 def download_zip():
     session = request.args.get("session", "")
     items   = [(cb, on) for cb, on, sid in results_store.values() if sid == session]
