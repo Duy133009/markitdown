@@ -28,265 +28,267 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MarkItDown Converter</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<link id="hl-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  ::-webkit-scrollbar{width:5px;height:5px;}
-  ::-webkit-scrollbar-track{background:#0a0b0f;}
-  ::-webkit-scrollbar-thumb{background:#1e2133;border-radius:4px;}
-  ::-webkit-scrollbar-thumb:hover{background:#2e3350;}
-  body{background:#0a0b0f;font-family:'Segoe UI',system-ui,sans-serif;color:#e2e8f0;}
+:root{
+  --bg:#080808;--surface:#111113;--surface2:#1a1a1d;
+  --border:rgba(255,255,255,.07);--border-hover:rgba(255,255,255,.14);
+  --text:#ffffff;--text-2:rgba(255,255,255,.65);--text-3:rgba(255,255,255,.35);
+  --btn-bg:#ffffff;--btn-text:#000000;
+  --success:#22c55e;--error:#ef4444;--warning:#f59e0b;
+}
+body.light{
+  --bg:#ffffff;--surface:#fafafa;--surface2:#f4f4f5;
+  --border:rgba(0,0,0,.08);--border-hover:rgba(0,0,0,.16);
+  --text:#0a0a0a;--text-2:rgba(0,0,0,.6);--text-3:rgba(0,0,0,.35);
+  --btn-bg:#000000;--btn-text:#ffffff;
+  --success:#16a34a;--error:#dc2626;--warning:#d97706;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI',system-ui,sans-serif;font-size:14px;height:100vh;overflow:hidden;}
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:2px;}
+::-webkit-scrollbar-thumb:hover{background:var(--border-hover);}
 
-  @keyframes spin{to{transform:rotate(360deg);}}
-  @keyframes bounce-up{0%,100%{transform:translateY(0);}50%{transform:translateY(-8px);}}
-  @keyframes fade-up{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
-  @keyframes slide-right{from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:translateX(0);}}
-  @keyframes shimmer{0%{background-position:-200% 0;}100%{background-position:200% 0;}}
-  @keyframes card-in{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes slideIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+@keyframes shimmer{0%,100%{opacity:.4;}50%{opacity:.75;}}
 
-  .spin{animation:spin .7s linear infinite;}
-  .bounce{animation:bounce-up 2s ease-in-out infinite;}
-  .fade-up{animation:fade-up .22s ease forwards;}
-  .slide-right{animation:slide-right .22s ease forwards;}
-  .card-in{animation:card-in .2s ease forwards;}
+/* THREE-PANE LAYOUT */
+.app{display:grid;grid-template-columns:260px 320px 1fr;height:100vh;overflow:hidden;}
 
-  .shimmer-btn{
-    background:linear-gradient(90deg,#6366f1 0%,#818cf8 25%,#6366f1 50%,#818cf8 75%,#6366f1 100%);
-    background-size:200% auto;
-  }
-  .shimmer-btn:hover:not(:disabled){animation:shimmer 1.4s linear infinite;}
-  .shimmer-skel{
-    background:linear-gradient(90deg,#1a1d2e 25%,#22263a 50%,#1a1d2e 75%);
-    background-size:200% auto;
-    animation:shimmer 1.5s linear infinite;
-  }
+/* ── SIDEBAR ── */
+.sidebar{background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-header{padding:18px 16px 12px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{display:flex;flex-direction:column;gap:3px;}
+.logo-name{font-size:14px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:6px;}
+.logo-dot{width:6px;height:6px;background:var(--text);border-radius:50%;display:inline-block;}
+.logo-sub{font-size:11px;color:var(--text-3);letter-spacing:.01em;}
+.theme-btn{width:28px;height:28px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text-2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s,border-color .15s;}
+.theme-btn:hover{background:var(--surface2);border-color:var(--border-hover);}
+.sidebar-body{flex:1;padding:12px;overflow:hidden;display:flex;flex-direction:column;}
+.dropzone{border:1px dashed var(--border);border-radius:8px;padding:22px 12px;text-align:center;cursor:pointer;transition:all .15s;background:transparent;position:relative;flex-shrink:0;}
+.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.dropzone:hover,.dropzone.dz-active{border-color:var(--border-hover);background:var(--surface);}
+.dropzone-icon{font-size:26px;margin-bottom:8px;}
+.dropzone-title{font-size:12px;font-weight:500;color:var(--text-2);margin-bottom:4px;}
+.dropzone-sub{font-size:11px;color:var(--text-3);margin-bottom:10px;}
+.badge-list{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;}
+.badge{font-size:10px;padding:2px 6px;border-radius:4px;background:var(--surface2);color:var(--text-3);border:1px solid var(--border);font-family:monospace;}
+.sidebar-controls{padding:12px;border-top:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:8px;}
+.label-sm{font-size:10px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;}
+.select-format{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:12px;outline:none;cursor:pointer;transition:border-color .15s;font-family:inherit;}
+.select-format:hover{border-color:var(--border-hover);}
+.btn-primary{width:100%;background:var(--btn-bg);color:var(--btn-text);border:none;border-radius:6px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .15s;letter-spacing:-.01em;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;}
+.btn-primary:hover:not(:disabled){opacity:.85;transform:translateY(-1px);}
+.btn-primary:disabled{opacity:.3;cursor:not-allowed;transform:none;}
+.btn-secondary{width:100%;background:transparent;color:var(--text-3);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:12px;cursor:pointer;transition:all .15s;font-family:inherit;}
+.btn-secondary:hover{color:var(--text-2);border-color:var(--border-hover);background:var(--surface);}
+.spinner{width:12px;height:12px;border:1.5px solid rgba(0,0,0,.2);border-top-color:var(--btn-text);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
 
-  .dz-active{
-    border-color:#6366f1!important;
-    background:rgba(99,102,241,.06)!important;
-    box-shadow:0 0 0 4px rgba(99,102,241,.14),inset 0 0 40px rgba(99,102,241,.04);
-  }
+/* ── FILE PANE ── */
+.file-pane{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.file-pane-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.file-pane-title{font-size:12px;font-weight:600;letter-spacing:-.01em;}
+.count-badge{background:var(--surface2);color:var(--text-3);font-size:10px;padding:1px 6px;border-radius:99px;border:1px solid var(--border);}
+.file-list{overflow-y:auto;flex:1;}
+.file-item{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;transition:background .1s;position:relative;animation:slideIn .2s ease;}
+.file-item:hover{background:rgba(128,128,128,.05);}
+.file-item.selected{background:var(--surface2);}
+.file-item.selected::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--text);border-radius:0 1px 1px 0;}
+.file-item.clickable{cursor:pointer;}
+.file-icon{font-size:18px;flex-shrink:0;width:22px;text-align:center;}
+.file-info{flex:1;min-width:0;}
+.file-name{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;}
+.file-size{font-size:11px;color:var(--text-3);margin-top:2px;}
+.file-status{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;margin-top:4px;}
+.status-waiting{background:rgba(128,128,128,.1);color:var(--text-3);}
+.status-converting{background:rgba(245,158,11,.1);color:var(--warning);}
+.status-done{background:rgba(34,197,94,.1);color:var(--success);}
+.status-error{background:rgba(239,68,68,.1);color:var(--error);}
+.file-actions{display:flex;gap:4px;flex-shrink:0;opacity:0;transition:opacity .15s;}
+.file-item:hover .file-actions{opacity:1;}
+.icon-btn{width:24px;height:24px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-3);cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .1s;}
+.icon-btn:hover{background:var(--surface2);color:var(--text);border-color:var(--border-hover);}
+.icon-btn.danger:hover{color:var(--error);border-color:var(--error);}
+.file-progress{position:absolute;bottom:0;left:0;height:1px;background:var(--text);opacity:.2;width:100%;animation:shimmer 1.5s ease-in-out infinite;}
+.file-empty{flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-3);padding:40px 16px;text-align:center;}
+.file-empty-icon{font-size:28px;opacity:.25;}
+.file-empty-text{font-size:12px;}
+.progress-wrap{padding:8px 16px;flex-shrink:0;}
+.progress-track{background:var(--surface2);border-radius:99px;height:2px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--text);border-radius:99px;transition:width .3s;width:0%;}
+.summary-bar{padding:10px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.summary-text{font-size:11px;color:var(--text-3);flex:1;}
+.btn-zip{background:transparent;border:1px solid var(--border);color:var(--text-2);font-size:11px;padding:5px 10px;border-radius:5px;cursor:pointer;transition:all .15s;white-space:nowrap;font-family:inherit;}
+.btn-zip:hover{background:var(--surface2);border-color:var(--border-hover);color:var(--text);}
 
-  .card-progress{
-    position:absolute;bottom:0;left:0;right:0;height:3px;border-radius:0 0 12px 12px;
-    background:linear-gradient(90deg,#6366f1,#818cf8);background-size:200% auto;
-    animation:shimmer 1.2s linear infinite;
-  }
+/* ── PREVIEW PANE ── */
+.preview-pane{background:var(--bg);display:flex;flex-direction:column;overflow:hidden;}
+.preview-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.preview-empty-icon{font-size:36px;opacity:.1;}
+.preview-empty-text{font-size:13px;color:var(--text-3);}
+.preview-empty-sub{font-size:11px;color:var(--text-3);opacity:.6;}
+#previewPanel{display:none;flex-direction:column;height:100%;}
+#previewPanel.visible{display:flex;}
+.preview-header{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.preview-filename{font-size:12px;font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tab-toggle{display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px;gap:2px;}
+.tab-btn{font-size:11px;padding:4px 12px;border-radius:4px;cursor:pointer;color:var(--text-3);border:none;background:transparent;transition:all .1s;font-family:inherit;}
+.tab-btn.active{background:var(--btn-bg);color:var(--btn-text);font-weight:500;}
+.preview-actions{display:flex;gap:6px;}
+.action-btn{height:26px;padding:0 10px;background:transparent;border:1px solid var(--border);border-radius:5px;color:var(--text-3);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all .1s;white-space:nowrap;font-family:inherit;}
+.action-btn:hover{background:var(--surface);color:var(--text);border-color:var(--border-hover);}
+.action-btn.close-btn{width:26px;padding:0;justify-content:center;}
+#skelWrap{padding:28px 36px;flex-shrink:0;}
+.skeleton-line{background:var(--surface2);border-radius:4px;height:14px;margin-bottom:12px;animation:shimmer 1.5s ease-in-out infinite;}
+.preview-content{flex:1;overflow-y:auto;padding:28px 36px;}
+.prose{max-width:680px;margin:0 auto;font-size:14px;line-height:1.75;color:var(--text-2);}
+.prose h1{font-size:1.5rem;font-weight:700;color:var(--text);margin:1.5em 0 .4em;letter-spacing:-.02em;}
+.prose h2{font-size:1.2rem;font-weight:600;color:var(--text);margin:1.4em 0 .4em;letter-spacing:-.01em;}
+.prose h3{font-size:1rem;font-weight:600;color:var(--text);margin:1.2em 0 .3em;}
+.prose h4,.prose h5,.prose h6{font-weight:600;color:var(--text);margin:1em 0 .3em;}
+.prose p{margin:0 0 1em;}
+.prose a{color:var(--text-2);text-decoration:underline;text-decoration-color:var(--border-hover);}
+.prose a:hover{color:var(--text);}
+.prose code{background:var(--surface2);color:var(--text-2);padding:1px 6px;border-radius:4px;font-size:12px;font-family:'SF Mono','Fira Code','Consolas',monospace;border:1px solid var(--border);}
+.prose pre{background:var(--surface)!important;border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;margin:1em 0;}
+.prose pre code{background:none;border:none;padding:0;font-size:12px;line-height:1.6;}
+.prose blockquote{border-left:2px solid var(--border-hover);padding-left:16px;color:var(--text-3);margin:1em 0;}
+.prose table{width:100%;border-collapse:collapse;margin:1em 0;font-size:13px;}
+.prose th{background:var(--surface2);color:var(--text);font-weight:500;text-align:left;padding:8px 12px;border:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+.prose td{padding:8px 12px;border:1px solid var(--border);color:var(--text-2);}
+.prose ul,.prose ol{padding-left:1.5em;margin:.5em 0;}
+.prose li{margin:.25em 0;}
+.prose hr{border:none;border-top:1px solid var(--border);margin:1.5em 0;}
+.prose img{max-width:100%;border-radius:6px;border:1px solid var(--border);}
+.prose strong{color:var(--text);font-weight:600;}
+.raw-area{flex:1;background:var(--surface);color:var(--text-2);font-family:'SF Mono','Fira Code','Consolas',monospace;font-size:12px;line-height:1.6;border:none;outline:none;resize:none;padding:28px 36px;border-top:1px solid var(--border);}
 
-  .prose-dark{color:#e2e8f0;line-height:1.8;font-size:.93rem;}
-  .prose-dark h1,.prose-dark h2,.prose-dark h3,.prose-dark h4{color:#f1f5f9;font-weight:700;margin:1.4em 0 .5em;}
-  .prose-dark h1{font-size:1.55em;border-bottom:1px solid #1e2133;padding-bottom:.4em;}
-  .prose-dark h2{font-size:1.3em;border-bottom:1px solid #1e2133;padding-bottom:.3em;}
-  .prose-dark h3{font-size:1.1em;}
-  .prose-dark p{margin:.75em 0;}
-  .prose-dark ul,.prose-dark ol{padding-left:1.6em;margin:.75em 0;}
-  .prose-dark li{margin:.25em 0;}
-  .prose-dark code:not(pre code){background:#1e2133;color:#a78bfa;padding:2px 6px;border-radius:4px;font-size:.85em;font-family:'Cascadia Code','Fira Code',monospace;}
-  .prose-dark pre{background:#0d0f17!important;border:1px solid #1e2133;border-radius:8px;overflow-x:auto;margin:.9em 0;}
-  .prose-dark pre code{font-size:.83em;}
-  .prose-dark table{width:100%;border-collapse:collapse;margin:.9em 0;font-size:.88em;}
-  .prose-dark th{background:#1a1d2e;color:#a78bfa;padding:8px 12px;text-align:left;border:1px solid #1e2133;}
-  .prose-dark td{padding:8px 12px;border:1px solid #1e2133;}
-  .prose-dark tr:nth-child(even){background:rgba(30,33,51,.4);}
-  .prose-dark a{color:#818cf8;text-decoration:underline;}
-  .prose-dark blockquote{border-left:3px solid #6366f1;padding-left:1em;color:#94a3b8;margin:.9em 0;}
-  .prose-dark hr{border:none;border-top:1px solid #1e2133;margin:1.4em 0;}
-  .prose-dark img{max-width:100%;border-radius:8px;}
-
-  .tab-on{color:#818cf8;border-bottom:2px solid #6366f1;}
-  .tab-off{color:#64748b;border-bottom:2px solid transparent;}
-  .tab-off:hover{color:#94a3b8;}
-
-  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;transition:grid-template-columns .3s ease;}
-  .one-col{display:grid;grid-template-columns:1fr;gap:20px;}
-
-  @media(max-width:768px){.two-col{grid-template-columns:1fr!important;}}
-
-  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:40;}
-  .modal-box{position:fixed;inset:0;z-index:41;display:flex;flex-direction:column;background:#12141c;}
-
-  .pill{background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);color:#818cf8;}
-
-  .icon-btn{
-    width:32px;height:32px;display:flex;align-items:center;justify-content:center;
-    border-radius:8px;border:1px solid #1e2133;background:#1a1d2e;
-    color:#94a3b8;cursor:pointer;font-size:.95rem;transition:all .15s;
-  }
-  .icon-btn:hover{border-color:#6366f1;color:#818cf8;}
+/* Mobile modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:40;}
+.modal-box{position:fixed;inset:0;z-index:41;display:flex;flex-direction:column;background:var(--surface);}
 </style>
 </head>
-<body class="min-h-screen">
-<div class="max-w-screen-xl mx-auto px-4 py-8">
+<body>
+<div class="app">
 
-  <!-- HEADER -->
-  <header class="text-center mb-10 relative">
-    <div class="absolute top-0 right-0">
-      <span class="pill text-xs px-3 py-1 rounded-full font-medium">✨ Powered by AI</span>
+  <!-- ── PANE 1: SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-name"><span class="logo-dot"></span>MarkItDown</div>
+        <div class="logo-sub">File to Markdown converter</div>
+      </div>
+      <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">&#9728;</button>
     </div>
-    <h1 class="text-4xl font-bold mb-2"
-      style="background:linear-gradient(135deg,#6366f1,#a78bfa,#c4b5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
-      📄 MarkItDown Converter
-    </h1>
-    <p class="text-sm" style="color:#64748b;">Chuyen doi PDF, Word, Excel, PowerPoint, anh... sang Markdown de dung voi LLM</p>
-  </header>
+    <div class="sidebar-body">
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" multiple accept="*/*">
+        <div class="dropzone-icon">&#9729;&#65039;</div>
+        <div class="dropzone-title">Keo tha hoac click de chon</div>
+        <div class="dropzone-sub">Toi da 200MB/file</div>
+        <div class="badge-list">
+          <span class="badge">PDF</span><span class="badge">DOCX</span><span class="badge">XLSX</span>
+          <span class="badge">PPTX</span><span class="badge">HTML</span><span class="badge">CSV</span>
+          <span class="badge">JSON</span><span class="badge">XML</span><span class="badge">TXT</span>
+          <span class="badge">JPG</span><span class="badge">PNG</span><span class="badge">MP3</span>
+          <span class="badge">WAV</span><span class="badge">EPUB</span><span class="badge">ZIP</span>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-controls">
+      <div>
+        <div class="label-sm">Format dau ra</div>
+        <select id="outputFormat" class="select-format">
+          <option value="md">Markdown (.md)</option>
+          <option value="txt">Plain Text (.txt)</option>
+        </select>
+      </div>
+      <button id="convertBtn" onclick="convertAll()" disabled class="btn-primary">Convert tat ca</button>
+      <button onclick="clearAll()" class="btn-secondary">Xoa tat ca</button>
+    </div>
+  </aside>
 
-  <!-- DROP ZONE -->
-  <div id="dropzone"
-    class="relative rounded-2xl border-2 border-dashed text-center cursor-pointer transition-all duration-200 mb-4"
-    style="border-color:#1e2133;background:#12141c;padding:52px 24px;">
-    <input type="file" id="fileInput" multiple accept="*/*"
-      class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-    <div class="bounce text-5xl mb-4">&#9729;&#65039;</div>
-    <h3 class="text-lg font-semibold mb-1">Keo tha file vao day hoac click de chon</h3>
-    <p class="text-sm mb-5" style="color:#64748b;">Ho tro nhieu file cung luc &middot; Toi da 200MB/file</p>
-    <div class="flex flex-wrap gap-2 justify-center">
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">PDF</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">DOCX</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">XLSX</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">PPTX</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">HTML</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">CSV</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">JSON</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">XML</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">TXT</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">JPG/PNG</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">MP3/WAV</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">EPUB</span>
-      <span class="pill text-xs px-2.5 py-1 rounded-full font-mono">ZIP</span>
+  <!-- ── PANE 2: FILE LIST ── -->
+  <div class="file-pane">
+    <div class="file-pane-header">
+      <span class="file-pane-title">Files</span>
+      <span class="count-badge" id="countBadge">0</span>
+    </div>
+    <div class="file-list" id="fileQueue"></div>
+    <div class="file-empty" id="emptyHint" style="display:flex;">
+      <div class="file-empty-icon">&#128196;</div>
+      <div class="file-empty-text">Chua co file nao</div>
+    </div>
+    <div class="progress-wrap" id="progressWrap" style="display:none;">
+      <div class="progress-track"><div class="progress-fill" id="progressBar"></div></div>
+    </div>
+    <div class="summary-bar" id="summary" style="display:none;">
+      <span class="summary-text" id="summaryText"></span>
+      <button class="btn-zip" id="downloadAllBtn" onclick="downloadAll()">&#11015; Tai tat ca .zip</button>
     </div>
   </div>
 
-  <!-- OPTIONS BAR -->
-  <div class="flex items-center gap-3 rounded-xl border px-5 py-3.5 mb-5 flex-wrap"
-    style="background:#12141c;border-color:#1e2133;">
-    <span class="text-sm" style="color:#64748b;">Format dau ra:</span>
-    <select id="outputFormat" class="text-sm rounded-lg px-3 py-1.5 outline-none cursor-pointer"
-      style="background:#1a1d2e;border:1px solid #1e2133;color:#e2e8f0;">
-      <option value="md">Markdown (.md)</option>
-      <option value="txt">Plain Text (.txt)</option>
-    </select>
-    <div class="flex-1"></div>
-    <button onclick="clearAll()" id="clearBtn"
-      class="text-sm px-4 py-2 rounded-lg font-medium border transition-all"
-      style="color:#ef4444;border-color:rgba(239,68,68,.35);background:transparent;"
-      onmouseover="this.style.background='rgba(239,68,68,.08)'"
-      onmouseout="this.style.background='transparent'">Xoa tat ca</button>
-    <button id="convertBtn" onclick="convertAll()" disabled
-      class="shimmer-btn text-sm px-5 py-2 rounded-lg font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-      &#9889; Convert tat ca
-    </button>
-  </div>
-
-  <!-- MAIN LAYOUT -->
-  <div class="one-col" id="mainLayout">
-
-    <!-- LEFT col -->
-    <div id="leftCol">
-      <div id="fileQueue" class="flex flex-col gap-2.5"></div>
-      <div id="emptyHint" class="text-center py-12 text-sm" style="color:#475569;display:none;">
-        Chua co file nao duoc them vao
-      </div>
-
-      <!-- global progress -->
-      <div id="progressWrap" class="mt-3 rounded-full overflow-hidden"
-        style="height:4px;background:#1a1d2e;display:none;">
-        <div id="progressBar" class="h-full rounded-full transition-all duration-300"
-          style="width:0%;background:linear-gradient(90deg,#6366f1,#818cf8);"></div>
-      </div>
-
-      <!-- summary -->
-      <div id="summary" class="flex items-center gap-4 rounded-xl border px-5 py-3.5 mt-4 flex-wrap"
-        style="background:#12141c;border-color:#1e2133;display:none;">
-        <div id="summaryText" class="text-sm" style="color:#94a3b8;"></div>
-        <div class="flex-1"></div>
-        <button id="downloadAllBtn" onclick="downloadAll()"
-          class="shimmer-btn text-sm px-4 py-2 rounded-lg font-semibold text-white">
-          &#11015;&#65039; Tai tat ca (.zip)
-        </button>
-      </div>
+  <!-- ── PANE 3: PREVIEW ── -->
+  <div class="preview-pane">
+    <div class="preview-empty" id="previewEmpty">
+      <div class="preview-empty-icon">&#128196;</div>
+      <div class="preview-empty-text">Chon file de xem preview</div>
+      <div class="preview-empty-sub">Convert file truoc, sau do click de xem noi dung</div>
     </div>
-
-    <!-- RIGHT col: preview panel (desktop) -->
-    <div id="previewPanel" style="display:none;">
-      <div class="rounded-2xl border flex flex-col slide-right"
-        style="background:#12141c;border-color:#1e2133;position:sticky;top:20px;height:calc(100vh - 200px);min-height:420px;">
-
-        <!-- panel header -->
-        <div class="flex items-center gap-2 px-4 py-3 border-b" style="border-color:#1e2133;flex-shrink:0;">
-          <span id="previewFileName" class="text-sm font-medium truncate flex-1" style="color:#e2e8f0;"></span>
-          <button onclick="copyContent()" id="copyBtn"
-            class="text-xs px-3 py-1.5 rounded-lg font-medium border transition-all"
-            style="background:#1a1d2e;border-color:#1e2133;color:#94a3b8;"
-            onmouseover="this.style.borderColor='#6366f1';this.style.color='#818cf8'"
-            onmouseout="this.style.borderColor='#1e2133';this.style.color='#94a3b8'">
-            &#128203; Copy
-          </button>
-          <button id="dlOneBtn"
-            class="text-xs px-3 py-1.5 rounded-lg font-medium border transition-all"
-            style="background:#1a1d2e;border-color:#1e2133;color:#94a3b8;"
-            onmouseover="this.style.borderColor='#6366f1';this.style.color='#818cf8'"
-            onmouseout="this.style.borderColor='#1e2133';this.style.color='#94a3b8'">
-            &#11015; Tai xuong
-          </button>
-          <button onclick="closePreview()"
-            class="icon-btn" style="border:none;background:#1a1d2e;"
-            onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">&#10005;</button>
+    <div id="previewPanel">
+      <div class="preview-header">
+        <span class="preview-filename" id="previewFileName"></span>
+        <div class="tab-toggle">
+          <button class="tab-btn active" id="tabR" onclick="switchTab('rendered')">Rendered</button>
+          <button class="tab-btn" id="tabRaw" onclick="switchTab('raw')">Raw</button>
         </div>
-
-        <!-- tabs -->
-        <div class="flex border-b px-4" style="border-color:#1e2133;flex-shrink:0;">
-          <button onclick="switchTab('rendered')" id="tabR"
-            class="tab-on text-sm px-4 py-2.5 font-medium transition-all mr-1">Rendered</button>
-          <button onclick="switchTab('raw')" id="tabRaw"
-            class="tab-off text-sm px-4 py-2.5 font-medium transition-all">Raw Markdown</button>
-        </div>
-
-        <!-- content -->
-        <div class="flex-1 overflow-hidden relative">
-          <div id="skelWrap" class="p-5 space-y-3" style="display:none;">
-            <div class="shimmer-skel h-6 rounded" style="width:60%;"></div>
-            <div class="shimmer-skel h-4 rounded w-full"></div>
-            <div class="shimmer-skel h-4 rounded" style="width:80%;"></div>
-            <div class="shimmer-skel h-4 rounded w-full"></div>
-            <div class="shimmer-skel h-4 rounded" style="width:70%;"></div>
-            <div class="shimmer-skel h-24 rounded w-full mt-3"></div>
-            <div class="shimmer-skel h-4 rounded w-full"></div>
-            <div class="shimmer-skel h-4 rounded" style="width:85%;"></div>
-          </div>
-          <div id="pRendered" class="prose-dark p-5 overflow-y-auto h-full"
-            style="scrollbar-width:thin;"></div>
-          <textarea id="pRaw" readonly
-            class="w-full h-full p-4 resize-none outline-none text-xs font-mono"
-            style="background:#0a0b0f;color:#94a3b8;border:none;display:none;scrollbar-width:thin;"></textarea>
+        <div class="preview-actions">
+          <button class="action-btn" id="copyBtn" onclick="copyContent()">&#128203; Copy</button>
+          <button class="action-btn" id="dlOneBtn">&#11015; Tai xuong</button>
+          <button class="action-btn close-btn" onclick="closePreview()">&#10005;</button>
         </div>
       </div>
+      <div id="skelWrap" style="display:none;">
+        <div class="skeleton-line" style="width:55%;height:18px;"></div>
+        <div class="skeleton-line" style="width:100%;"></div>
+        <div class="skeleton-line" style="width:80%;"></div>
+        <div class="skeleton-line" style="width:100%;"></div>
+        <div class="skeleton-line" style="width:65%;"></div>
+        <div class="skeleton-line" style="height:70px;width:100%;margin-top:8px;"></div>
+        <div class="skeleton-line" style="width:90%;"></div>
+      </div>
+      <div class="preview-content" id="pRendered">
+        <div class="prose" id="proseContent"></div>
+      </div>
+      <textarea class="raw-area" id="pRaw" readonly style="display:none;"></textarea>
     </div>
   </div>
 </div>
+
+<!-- hidden: JS toggles mainLayout class (no visual effect in 3-pane) -->
+<div id="mainLayout" style="display:none;"></div>
 
 <!-- MOBILE MODAL -->
 <div id="mobileModal" style="display:none;">
   <div class="modal-bg" onclick="closePreview()"></div>
   <div class="modal-box">
-    <div class="flex items-center gap-2 px-4 py-3 border-b" style="border-color:#1e2133;flex-shrink:0;">
-      <span id="mPreviewName" class="text-sm font-medium truncate flex-1" style="color:#e2e8f0;"></span>
-      <button onclick="copyContent()" class="icon-btn text-xs" style="width:auto;padding:0 10px;font-size:.75rem;">&#128203;</button>
-      <button onclick="closePreview()" class="icon-btn"
-        onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">&#10005;</button>
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:8px;">
+      <span id="mPreviewName" style="font-size:12px;font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      <button onclick="copyContent()" class="action-btn">&#128203;</button>
+      <button onclick="closePreview()" class="action-btn close-btn">&#10005;</button>
     </div>
-    <div class="flex border-b px-4" style="border-color:#1e2133;flex-shrink:0;">
-      <button onclick="switchTab('rendered')" id="mTabR"
-        class="tab-on text-sm px-4 py-2.5 font-medium transition-all mr-1">Rendered</button>
-      <button onclick="switchTab('raw')" id="mTabRaw"
-        class="tab-off text-sm px-4 py-2.5 font-medium transition-all">Raw</button>
+    <div style="display:flex;border-bottom:1px solid var(--border);padding:0 4px;flex-shrink:0;">
+      <button onclick="switchTab('rendered')" id="mTabR" class="tab-btn active" style="padding:10px 14px;">Rendered</button>
+      <button onclick="switchTab('raw')" id="mTabRaw" class="tab-btn" style="padding:10px 14px;">Raw</button>
     </div>
-    <div class="flex-1 overflow-hidden">
-      <div id="mRendered" class="prose-dark p-4 overflow-y-auto h-full" style="scrollbar-width:thin;"></div>
-      <textarea id="mRaw" readonly class="w-full h-full p-4 resize-none outline-none text-xs font-mono"
-        style="background:#0a0b0f;color:#94a3b8;border:none;display:none;scrollbar-width:thin;"></textarea>
+    <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div id="mRendered" class="preview-content" style="flex:1;overflow-y:auto;"><div class="prose"></div></div>
+      <textarea id="mRaw" readonly class="raw-area" style="display:none;flex:1;"></textarea>
     </div>
   </div>
 </div>
@@ -338,77 +340,60 @@ function clearAll(){
 
 // ── Render queue ───────────────────────────────────────────────────────────
 function render(){
-  const q    = document.getElementById('fileQueue');
-  const hint = document.getElementById('emptyHint');
-  q.innerHTML = '';
-  if(fileMap.size===0){ hint.style.display='block'; return; }
+  const q=document.getElementById('fileQueue');
+  const hint=document.getElementById('emptyHint');
+  q.innerHTML='';
+  document.getElementById('countBadge').textContent=fileMap.size;
+  if(fileMap.size===0){ hint.style.display='flex'; return; }
   hint.style.display='none';
 
   for(const [name,info] of fileMap){
-    const sel = name===curPreview;
-    const card = document.createElement('div');
-    card.className = 'card-in';
-    card.style.cssText =
-      'position:relative;overflow:hidden;border-radius:12px;border:1px solid '+(sel?'#6366f1':'#1e2133')+
-      ';background:'+(sel?'rgba(99,102,241,.07)':'#12141c')+
-      ';padding:12px 14px;display:flex;align-items:center;gap:12px;'+
-      'transition:border-color .15s,background .15s;'+
-      (info.status==='done'?'cursor:pointer;':'');
+    const sel=name===curPreview, done=info.status==='done';
+    const item=document.createElement('div');
+    item.className='file-item'+(sel?' selected':'')+(done?' clickable':'');
+    if(done) item.addEventListener('click',e=>{ if(!e.target.closest('button')) previewFile(name); });
 
-    if(info.status==='done'){
-      card.addEventListener('click', e=>{ if(!e.target.closest('button')) previewFile(name); });
-      card.addEventListener('mouseover',()=>{ if(name!==curPreview) card.style.borderColor='#2e3350'; });
-      card.addEventListener('mouseout', ()=>{ if(name!==curPreview) card.style.borderColor='#1e2133'; });
-    }
-
-    // status badge
     let badge='';
     if(info.status==='waiting')
-      badge=`<span style="font-size:.72rem;padding:3px 10px;border-radius:99px;background:rgba(100,116,139,.12);color:#64748b;font-weight:600;">Cho...</span>`;
+      badge=`<span class="file-status status-waiting">Cho...</span>`;
     else if(info.status==='converting')
-      badge=`<span style="font-size:.72rem;padding:3px 10px;border-radius:99px;background:rgba(245,158,11,.12);color:#f59e0b;font-weight:600;display:inline-flex;align-items:center;gap:6px;">
-               <span class="spin" style="display:inline-block;width:11px;height:11px;border-radius:50%;border:2px solid rgba(245,158,11,.3);border-top-color:#f59e0b;"></span>Xu ly
-             </span>`;
+      badge=`<span class="file-status status-converting"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(245,158,11,.3);border-top-color:var(--warning);animation:spin .7s linear infinite;"></span> Xu ly...</span>`;
     else if(info.status==='done')
-      badge=`<span style="font-size:.72rem;padding:3px 10px;border-radius:99px;background:rgba(34,197,94,.12);color:#22c55e;font-weight:600;">&#10003; Xong</span>`;
+      badge=`<span class="file-status status-done">&#10003; Xong</span>`;
     else
-      badge=`<span title="${info.error||'Loi'}" style="font-size:.72rem;padding:3px 10px;border-radius:99px;background:rgba(239,68,68,.12);color:#ef4444;font-weight:600;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;">&#10006; ${(info.error||'Loi').slice(0,20)}</span>`;
+      badge=`<span class="file-status status-error" title="${info.error||''}">&#10006; Loi</span>`;
 
-    // action buttons
     let actions='';
-    if(info.status==='done'){
+    if(done){
       const n=esc(name);
-      actions=`
-        <button onclick="previewFile('${n}')" class="icon-btn" title="Preview">&#128065;</button>
-        <button onclick="downloadOne('${n}')" class="icon-btn" title="Tai xuong">&#11015;</button>`;
+      actions=`<button onclick="previewFile('${n}')" class="icon-btn" title="Preview">&#128065;</button>
+               <button onclick="downloadOne('${n}')" class="icon-btn" title="Tai">&#11015;</button>`;
     }
-
-    card.innerHTML=`
-      <div style="font-size:1.5rem;flex-shrink:0;">${icon(name)}</div>
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:.875rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${name}">${name}</div>
-        <div style="font-size:.75rem;color:#64748b;margin-top:2px;">${fmtSz(info.file.size)}</div>
+    item.innerHTML=`
+      <div class="file-icon">${icon(name)}</div>
+      <div class="file-info">
+        <div class="file-name" title="${name}">${name}</div>
+        <div class="file-size">${fmtSz(info.file.size)}</div>
+        ${badge}
       </div>
-      <div style="display:flex;align-items:center;gap:7px;flex-shrink:0;">
-        ${badge}${actions}
-        <button onclick="removeFile('${esc(name)}')" class="icon-btn" style="border:none;background:transparent;color:#475569;"
-          onmouseover="this.style.color='#ef4444';this.style.background='rgba(239,68,68,.1)'"
-          onmouseout="this.style.color='#475569';this.style.background='transparent'"
-          title="Xoa">&#10005;</button>
+      <div class="file-actions">
+        ${actions}
+        <button onclick="removeFile('${esc(name)}')" class="icon-btn danger" title="Xoa">&#10005;</button>
       </div>
-      ${info.status==='converting'?'<div class="card-progress"></div>':''}
+      ${info.status==='converting'?'<div class="file-progress"></div>':''}
     `;
-    q.appendChild(card);
+    q.appendChild(item);
   }
 }
 
 // ── Convert ────────────────────────────────────────────────────────────────
 async function convertAll(){
   const btn=document.getElementById('convertBtn');
-  btn.disabled=true; btn.textContent='Dang xu ly...';
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Xu ly...';
   const fmt=document.getElementById('outputFormat').value;
   const todo=[...fileMap.entries()].filter(([,v])=>v.status==='waiting'||v.status==='error');
-  if(!todo.length){ btn.disabled=false; btn.textContent='⚡ Convert tat ca'; return; }
+  if(!todo.length){ btn.disabled=false; btn.textContent='Convert tat ca'; return; }
 
   document.getElementById('progressWrap').style.display='block';
   let done=0;
@@ -428,19 +413,19 @@ async function convertAll(){
     if(info.status==='done'&&!curPreview) previewFile(name);
   }
   updateSummary();
-  btn.disabled=false; btn.textContent='⚡ Convert tat ca';
+  btn.disabled=false; btn.textContent='Convert tat ca';
 }
 
 // ── Summary ────────────────────────────────────────────────────────────────
 function updateSummary(){
-  const ok  = [...fileMap.values()].filter(v=>v.status==='done').length;
-  const err = [...fileMap.values()].filter(v=>v.status==='error').length;
-  const el  = document.getElementById('summary');
+  const ok=[...fileMap.values()].filter(v=>v.status==='done').length;
+  const err=[...fileMap.values()].filter(v=>v.status==='error').length;
+  const el=document.getElementById('summary');
   if(!ok&&!err){ el.style.display='none'; return; }
   el.style.display='flex';
   document.getElementById('summaryText').innerHTML=
-    `<strong style="color:#e2e8f0">${ok}</strong> file thanh cong`+
-    (err?`, <strong style="color:#ef4444">${err}</strong> loi`:'');
+    `<strong>${ok}</strong> file thanh cong`+
+    (err?`, <strong style="color:var(--error)">${err}</strong> loi`:'');
   document.getElementById('downloadAllBtn').style.display=ok>1?'':'none';
 }
 
@@ -449,8 +434,7 @@ function downloadOne(name){
   const i=fileMap.get(name);
   if(!i||i.status!=='done') return;
   Object.assign(document.createElement('a'),{
-    href:`/download/${i.resultId}/${encodeURIComponent(i.outputName)}`,
-    download:i.outputName
+    href:`/download/${i.resultId}/${encodeURIComponent(i.outputName)}`,download:i.outputName
   }).click();
 }
 function downloadAll(){
@@ -464,16 +448,15 @@ async function previewFile(name){
   const info=fileMap.get(name);
   if(!info||info.status!=='done') return;
   curPreview=name; render();
-
   if(mob()){
     document.getElementById('mobileModal').style.display='block';
     document.getElementById('mPreviewName').textContent=info.outputName||name;
-    showSkel(true); showSkelM(true);
+    showSkelM(true);
     const c=await getContent(info.resultId);
     showSkelM(false); renderContent(c,true);
   } else {
-    document.getElementById('previewPanel').style.display='block';
-    document.getElementById('mainLayout').className='two-col';
+    document.getElementById('previewEmpty').style.display='none';
+    document.getElementById('previewPanel').classList.add('visible');
     document.getElementById('previewFileName').textContent=info.outputName||name;
     document.getElementById('dlOneBtn').onclick=()=>downloadOne(name);
     showSkel(true);
@@ -495,70 +478,61 @@ async function getContent(id){
 function renderContent(txt,mobile){
   const html=marked.parse(txt||'');
   if(mobile){
-    document.getElementById('mRendered').innerHTML=html;
+    const mR=document.getElementById('mRendered');
+    mR.innerHTML='<div class="prose">'+html+'</div>';
     document.getElementById('mRaw').value=txt||'';
-    document.getElementById('mRendered').querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
+    mR.querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
   } else {
-    document.getElementById('pRendered').innerHTML=html;
+    document.getElementById('proseContent').innerHTML=html;
     document.getElementById('pRaw').value=txt||'';
-    document.getElementById('pRendered').querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
+    document.getElementById('proseContent').querySelectorAll('pre code').forEach(el=>hljs.highlightElement(el));
   }
   applyTab();
 }
 
 function showSkel(on){
-  document.getElementById('skelWrap').style.display   =on?'block':'none';
-  document.getElementById('pRendered').style.display  =on?'none':'block';
-  document.getElementById('pRaw').style.display       ='none';
+  document.getElementById('skelWrap').style.display =on?'block':'none';
+  document.getElementById('pRendered').style.display=on?'none':'block';
+  document.getElementById('pRaw').style.display     ='none';
 }
 function showSkelM(on){
-  if(on){
-    document.getElementById('mRendered').innerHTML=
-      '<div class="space-y-3">'+
-      '<div class="shimmer-skel h-6 rounded" style="width:60%"></div>'+
-      '<div class="shimmer-skel h-4 rounded w-full"></div>'+
-      '<div class="shimmer-skel h-4 rounded" style="width:80%"></div>'+
-      '<div class="shimmer-skel h-20 rounded w-full mt-3"></div>'+
-      '</div>';
-  }
+  const mR=document.getElementById('mRendered');
+  if(on) mR.innerHTML='<div style="padding:20px 28px">'+
+    '<div class="skeleton-line" style="width:55%;height:18px;"></div>'+
+    '<div class="skeleton-line" style="width:100%;"></div>'+
+    '<div class="skeleton-line" style="width:75%;"></div>'+
+    '<div class="skeleton-line" style="height:60px;width:100%;margin-top:10px;"></div>'+
+    '</div>';
 }
 
 function closePreview(){
   curPreview=null;
-  document.getElementById('previewPanel').style.display='none';
-  document.getElementById('mainLayout').className='one-col';
+  document.getElementById('previewPanel').classList.remove('visible');
+  document.getElementById('previewEmpty').style.display='flex';
   document.getElementById('mobileModal').style.display='none';
+  document.getElementById('mainLayout').className='one-col';
   render();
 }
 
-function switchTab(tab){
-  curTab=tab; applyTab();
-}
+function switchTab(tab){ curTab=tab; applyTab(); }
 function applyTab(){
-  const on ='tab-on text-sm px-4 py-2.5 font-medium transition-all mr-1';
-  const off='tab-off text-sm px-4 py-2.5 font-medium transition-all';
-  const onNoMr='tab-on text-sm px-4 py-2.5 font-medium transition-all';
   const isR=curTab==='rendered';
-
-  // desktop
   const pR=document.getElementById('pRendered');
   const pRaw=document.getElementById('pRaw');
-  if(pR) pR.style.display=isR?'block':'none';
+  if(pR)   pR.style.display  =isR?'block':'none';
   if(pRaw) pRaw.style.display=isR?'none':'block';
   const tR=document.getElementById('tabR');
   const tRaw=document.getElementById('tabRaw');
-  if(tR) tR.className=isR?on:off.replace('mr-1','');
-  if(tRaw) tRaw.className=isR?off.replace('mr-1',''):onNoMr;
-
-  // mobile
+  if(tR)   tR.className  =isR?'tab-btn active':'tab-btn';
+  if(tRaw) tRaw.className=isR?'tab-btn':'tab-btn active';
   const mR=document.getElementById('mRendered');
   const mRaw=document.getElementById('mRaw');
-  if(mR) mR.style.display=isR?'block':'none';
+  if(mR)   mR.style.display  =isR?'block':'none';
   if(mRaw) mRaw.style.display=isR?'none':'block';
   const mtR=document.getElementById('mTabR');
   const mtRaw=document.getElementById('mTabRaw');
-  if(mtR) mtR.className=isR?on:off.replace('mr-1','');
-  if(mtRaw) mtRaw.className=isR?off.replace('mr-1',''):onNoMr;
+  if(mtR)   mtR.className  =isR?'tab-btn active':'tab-btn';
+  if(mtRaw) mtRaw.className=isR?'tab-btn':'tab-btn active';
 }
 
 async function copyContent(){
@@ -575,14 +549,30 @@ const dz=document.getElementById('dropzone');
 dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('dz-active'); });
 dz.addEventListener('dragleave',  ()=>dz.classList.remove('dz-active'));
 dz.addEventListener('drop', e=>{
-  e.preventDefault(); dz.classList.remove('dz-active');
-  addFiles(e.dataTransfer.files);
+  e.preventDefault(); dz.classList.remove('dz-active'); addFiles(e.dataTransfer.files);
 });
-document.getElementById('fileInput').addEventListener('change',e=>{
-  addFiles(e.target.files); e.target.value='';
-});
-
+document.getElementById('fileInput').addEventListener('change',e=>{ addFiles(e.target.files); e.target.value=''; });
 marked.setOptions({breaks:true,gfm:true});
+
+// ── Theme toggle ───────────────────────────────────────────────────────────
+const hlTheme=document.getElementById('hl-theme');
+function applyTheme(isLight){
+  if(isLight){
+    document.body.classList.add('light');
+    hlTheme.href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+    document.getElementById('themeBtn').textContent='🌙';
+  } else {
+    document.body.classList.remove('light');
+    hlTheme.href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+    document.getElementById('themeBtn').textContent='☀️';
+  }
+}
+function toggleTheme(){
+  const isLight=!document.body.classList.contains('light');
+  localStorage.setItem('theme',isLight?'light':'dark');
+  applyTheme(isLight);
+}
+applyTheme(localStorage.getItem('theme')==='light');
 </script>
 </body>
 </html>"""
