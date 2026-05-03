@@ -17,7 +17,7 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config --global user.email "action@github.com"
-          git config --global user.name "GitHub Action"
-          git remote add huggingface https://DuyTrinh:$HF_TOKEN@huggingface.co/spaces/DuyTrinh/markitdown
-          git push huggingface main --force
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git remote add huggingface https://DuyTrinh:${HF_TOKEN}@huggingface.co/spaces/DuyTrinh/markitdown
+          git push huggingface HEAD:main

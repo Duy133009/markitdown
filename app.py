@@ -46,6 +46,15 @@ def set_password(new_pw: str):
 # Supabase
 SUPABASE_URL = "https://hiojtrjfatfxbffrihnx.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhpb2p0cmpmYXRmeGJmZnJpaG54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI1Njk1NjEsImV4cCI6MjA3ODE0NTU2MX0.HuCpZ2HaNrPXrh6mGR9aH6VGQXEQyDFHzP3_ep9f8Eg"
+RETAINPDF_API_BASE = os.environ.get("RETAINPDF_API_BASE", "").rstrip("/")
+RETAINPDF_API_KEY = os.environ.get("RETAINPDF_API_KEY", "")
+RETAINPDF_PROVIDER = os.environ.get("RETAINPDF_PROVIDER", "paddle")
+RETAINPDF_PADDLE_TOKEN = os.environ.get("RETAINPDF_PADDLE_TOKEN", "")
+RETAINPDF_MINERU_TOKEN = os.environ.get("RETAINPDF_MINERU_TOKEN", "")
+RETAINPDF_MODEL_API_KEY = os.environ.get("RETAINPDF_MODEL_API_KEY", "")
+RETAINPDF_MODEL = os.environ.get("RETAINPDF_MODEL", "deepseek-v4-flash")
+RETAINPDF_BASE_URL = os.environ.get("RETAINPDF_BASE_URL", "https://api.deepseek.com/v1")
+RETAINPDF_TIMEOUT_SECONDS = int(os.environ.get("RETAINPDF_TIMEOUT_SECONDS", "1800"))
 
 def get_supabase():
     try:
@@ -306,6 +315,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
     </div>
     <div class="sidebar-controls">
       <div>
+        <div class="label-sm">Processing mode</div>
+        <select id="processMode" class="select-format" onchange="onModeChange()">
+          <option value="convert">Convert to Markdown</option>
+          <option value="translate_pdf">Translate PDF (RetainPDF)</option>
+        </select>
+      </div>
+      <div>
         <div class="label-sm">Conversion engine</div>
         <select id="engineSelect" class="select-format" onchange="saveEngineChoice()">
           <option value="markitdown">MarkItDown (default)</option>
@@ -319,6 +335,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Segoe UI'
           <option value="md">Markdown (.md)</option>
           <option value="txt">Plain Text (.txt)</option>
         </select>
+      </div>
+      <div id="modeHint" style="display:none;font-size:10px;color:var(--text-3);line-height:1.4;">
+        Translate mode uses RetainPDF and supports PDF files only.
       </div>
 
       <button id="convertBtn" onclick="convertAll()" disabled class="btn-primary">Convert all</button>
@@ -473,7 +492,7 @@ const mob  = () => window.innerWidth < 768;
 function addFiles(files){
   for(const f of files)
     if(!fileMap.has(f.name))
-      fileMap.set(f.name,{file:f,status:'waiting',resultId:null,outputName:null,error:null});
+      fileMap.set(f.name,{file:f,status:'waiting',resultId:null,outputName:null,error:null,zipAvailable:false});
   render();
   document.getElementById('convertBtn').disabled = fileMap.size===0;
 }
@@ -515,7 +534,8 @@ function render(){
       badge=`<span class="file-status status-converting"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(245,158,11,.3);border-top-color:var(--warning);animation:spin .7s linear infinite;"></span> Converting...</span>`;
     else if(info.status==='done'){
       const eMap={
-        'azure-di':      ['Azure DI','badge-azure'],
+        'retainpdf':     ['RetainPDF','badge-docling'],
+        'azure-di':      ['Azure DI','badge-local'],
         'pymupdf':       ['PyMuPDF','badge-pymupdf'],
         'docling':       ['Docling','badge-docling'],
         'markitdown':    ['local','badge-local'],
@@ -531,7 +551,8 @@ function render(){
     if(done){
       const n=esc(name);
       actions=`<button onclick="previewFile('${n}')" class="icon-btn" title="Preview">&#128065;</button>
-               <button onclick="downloadOne('${n}')" class="icon-btn" title="Download">&#11015;</button>`;
+               <button onclick="downloadOne('${n}')" class="icon-btn" title="Download">&#11015;</button>
+               ${info.zipAvailable ? `<button onclick="downloadTranslatedZip('${n}')" class="icon-btn" title="Download bundle">ZIP</button>` : ''}`;
     }
     item.innerHTML=`
       <div class="file-icon">${icon(name)}</div>
@@ -556,8 +577,18 @@ async function convertAll(){
   btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span> Processing...';
   const fmt=document.getElementById('outputFormat').value;
+  const processMode=document.getElementById('processMode').value;
   const todo=[...fileMap.entries()].filter(([,v])=>v.status==='waiting'||v.status==='error');
   if(!todo.length){ btn.disabled=false; btn.textContent='Convert all'; return; }
+  if(processMode==='translate_pdf'){
+    const notPdf=todo.find(([,v])=>ext(v.file.name)!=='pdf');
+    if(notPdf){
+      btn.disabled=false;
+      btn.textContent='Convert all';
+      alert('Translate mode only supports PDF files.');
+      return;
+    }
+  }
 
   document.getElementById('progressWrap').style.display='block';
   let done=0;
@@ -567,12 +598,19 @@ async function convertAll(){
     const engineChoice=document.getElementById('engineSelect').value;
     fd.append('file',info.file); fd.append('format',fmt); fd.append('session',sessionId);
     fd.append('engine', engineChoice);
+    fd.append('process_mode', processMode);
     try{
       const r=await fetch('/convert',{method:'POST',body:fd});
       const d=await r.json();
-      if(d.ok){ info.status='done'; info.resultId=d.result_id; info.outputName=d.output_name; info.engine=d.engine||'markitdown'; }
+      if(d.ok){
+        info.status='done';
+        info.resultId=d.result_id;
+        info.outputName=d.output_name;
+        info.engine=d.engine||'markitdown';
+        info.zipAvailable=!!d.zip_available;
+      }
       else    { info.status='error'; info.error=d.error||'Failed'; }
-    }catch{ info.status='error'; info.error='Loi ket noi'; }
+    }catch{ info.status='error'; info.error='Network error'; }
     done++;
     document.getElementById('progressBar').style.width=(done/todo.length*100)+'%';
     render();
@@ -606,6 +644,13 @@ function downloadOne(name){
 function downloadAll(){
   Object.assign(document.createElement('a'),{
     href:`/download-zip?session=${sessionId}`,download:'converted.zip'
+  }).click();
+}
+function downloadTranslatedZip(name){
+  const i=fileMap.get(name);
+  if(!i||i.status!=='done'||!i.zipAvailable) return;
+  Object.assign(document.createElement('a'),{
+    href:`/download-translate-zip/${i.resultId}`,download:'translated_bundle.zip'
   }).click();
 }
 
@@ -787,14 +832,27 @@ async function loadHistoryItem(id,name){
 function saveEngineChoice(){
   const v=document.getElementById('engineSelect').value;
   localStorage.setItem('engineChoice',v);
-  document.getElementById('azureSection').style.display=v==='azure-di'?'block':'none';
 }
 function loadEngineChoice(){
   const v=localStorage.getItem('engineChoice')||'markitdown';
   document.getElementById('engineSelect').value=v;
-  document.getElementById('azureSection').style.display=v==='azure-di'?'block':'none';
 }
 loadEngineChoice();
+
+function onModeChange(){
+  const mode=document.getElementById('processMode').value;
+  const engineSelect=document.getElementById('engineSelect');
+  const outputFormat=document.getElementById('outputFormat');
+  const modeHint=document.getElementById('modeHint');
+  const convertBtn=document.getElementById('convertBtn');
+  const translate=mode==='translate_pdf';
+  engineSelect.disabled=translate;
+  outputFormat.disabled=translate;
+  if(translate) outputFormat.value='md';
+  modeHint.style.display=translate?'block':'none';
+  convertBtn.textContent=translate?'Translate all':'Convert all';
+}
+onModeChange();
 
 
 // ── Settings ───────────────────────────────────────────────────────────────
@@ -856,6 +914,7 @@ applyTheme(localStorage.getItem('theme')==='light');
 
 md_converter  = MarkItDown()
 results_store = {}
+translated_zip_store = {}
 
 
 def convert_with_pymupdf(file_path: str) -> str:
@@ -893,6 +952,52 @@ def convert_with_azure_di(file_path: str, endpoint: str, api_key: str) -> str:
         )
     result = poller.result()
     return result.content or ""
+
+
+def convert_with_retainpdf(file_path: str, input_name: str):
+    """Translate PDF via RetainPDF sync API, return markdown + raw zip bytes."""
+    if not RETAINPDF_API_BASE or not RETAINPDF_API_KEY:
+        raise RuntimeError("RetainPDF is not configured. Set RETAINPDF_API_BASE and RETAINPDF_API_KEY.")
+    if not RETAINPDF_MODEL_API_KEY:
+        raise RuntimeError("Missing RETAINPDF_MODEL_API_KEY for translation.")
+    if RETAINPDF_PROVIDER == "paddle" and not RETAINPDF_PADDLE_TOKEN:
+        raise RuntimeError("Missing RETAINPDF_PADDLE_TOKEN.")
+    if RETAINPDF_PROVIDER == "mineru" and not RETAINPDF_MINERU_TOKEN:
+        raise RuntimeError("Missing RETAINPDF_MINERU_TOKEN.")
+
+    import requests
+    with open(file_path, "rb") as f:
+        response = requests.post(
+            f"{RETAINPDF_API_BASE}/api/v1/translate/bundle",
+            headers={"X-API-Key": RETAINPDF_API_KEY},
+            data={
+                "provider": RETAINPDF_PROVIDER,
+                "paddle_token": RETAINPDF_PADDLE_TOKEN,
+                "mineru_token": RETAINPDF_MINERU_TOKEN,
+                "base_url": RETAINPDF_BASE_URL,
+                "api_key": RETAINPDF_MODEL_API_KEY,
+                "model": RETAINPDF_MODEL,
+                "mode": "sci",
+                "workers": "100",
+                "batch_size": "1",
+            },
+            files={"file": (input_name, f, "application/pdf")},
+            timeout=RETAINPDF_TIMEOUT_SECONDS,
+        )
+    if response.status_code != 200:
+        snippet = response.text[:220] if response.text else f"HTTP {response.status_code}"
+        raise RuntimeError(f"RetainPDF API failed: {snippet}")
+
+    zip_bytes = response.content
+    md_text = ""
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        names = zf.namelist()
+        preferred = [n for n in names if n.lower().endswith(".md")]
+        if preferred:
+            md_text = zf.read(preferred[0]).decode("utf-8", errors="replace")
+    if not md_text:
+        raise RuntimeError("RetainPDF returned no markdown artifact.")
+    return md_text, zip_bytes
 
 
 LOGIN_PAGE = """<!DOCTYPE html>
@@ -1011,7 +1116,8 @@ def convert():
     file              = request.files.get("file")
     fmt               = request.form.get("format", "md")
     session           = request.form.get("session", "default")
-    engine_choice     = request.form.get("engine", "markitdown")  # markitdown|pymupdf|docling|azure-di
+    engine_choice     = request.form.get("engine", "markitdown")
+    process_mode      = request.form.get("process_mode", "convert")
     docintel_endpoint = request.form.get("docintel_endpoint", "").strip()
     docintel_key      = request.form.get("docintel_key", "").strip()
 
@@ -1027,7 +1133,12 @@ def convert():
         file.save(str(tmp_path))
         engine = engine_choice
 
-        if engine_choice == "pymupdf":
+        if process_mode == "translate_pdf":
+            if file_ext != "pdf":
+                return jsonify({"ok": False, "error": "Translate mode only supports PDF files."})
+            content, zip_bytes = convert_with_retainpdf(str(tmp_path), file.filename)
+            engine = "retainpdf"
+        elif engine_choice == "pymupdf":
             try:
                 content = convert_with_pymupdf(str(tmp_path))
             except Exception as e:
@@ -1061,13 +1172,21 @@ def convert():
         output_name   = f"{Path(file.filename).stem}.{fmt}"
         result_id     = str(uuid.uuid4())
         results_store[result_id] = (content_bytes, output_name, session)
+        if process_mode == "translate_pdf":
+            translated_zip_store[result_id] = zip_bytes
 
         # Persist to Supabase (non-blocking best-effort)
         save_conversion(
             file_name=file.filename, file_size=file.content_length or len(content_bytes),
             file_ext=file_ext, engine=engine, output_name=output_name, content=content,
         )
-        return jsonify({"ok": True, "result_id": result_id, "output_name": output_name, "engine": engine})
+        return jsonify({
+            "ok": True,
+            "result_id": result_id,
+            "output_name": output_name,
+            "engine": engine,
+            "zip_available": process_mode == "translate_pdf",
+        })
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)[:160]})
     finally:
@@ -1138,6 +1257,20 @@ def download_zip():
             zf.writestr(output_name, content_bytes)
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name="converted.zip", mimetype="application/zip")
+
+
+@app.route("/download-translate-zip/<result_id>")
+@login_required
+def download_translate_zip(result_id):
+    zip_bytes = translated_zip_store.get(result_id)
+    if not zip_bytes:
+        return "Not found", 404
+    return send_file(
+        io.BytesIO(zip_bytes),
+        as_attachment=True,
+        download_name="translated_bundle.zip",
+        mimetype="application/zip",
+    )
 
 
 if __name__ == "__main__":
